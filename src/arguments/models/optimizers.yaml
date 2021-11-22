@@ -1,0 +1,22 @@
+optimizer:
+  general:
+  adam:
+    lr: 0.001
+    beta1: 0.9
+    beta2: 0.98
+    eps: !!float 1e-9
+
+lr_scheduler:
+  general:
+  steplr:
+    step_size: 10
+    gamma: 0.99
+  warmup:
+    factor: 1
+    step_size: 1
+    lr_warmup_step: 40
+  cosdecay:
+    init_lr: 0.0003
+    mini_lr: !!float 1e-6
+    step_size: 100
+    warmup_size: 0.02

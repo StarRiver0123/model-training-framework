@@ -1,0 +1,3 @@
+criteria:
+  general:
+    label_smoothing: 0.1

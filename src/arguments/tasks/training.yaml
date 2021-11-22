@@ -1,0 +1,19 @@
+training:
+  general:
+  translation:
+    epochs: 50
+    batch_size: 8
+    valid_size: 0.1    # proportion of the sum of train set and valid set
+    test_size: 0.1     # proportion of the sum of train set and valid set and test set
+    validating: !!bool True
+    save_model: !!bool True
+    model_save:
+      save_mode: 'state'   #  'model' or 'state'
+      save_model: !!bool True
+      save_criterion: !!bool False
+      save_optimizer: !!bool False
+      save_lr_scheduler: !!bool False
+      save_evaluator: !!bool False
+    loss_threshold: 1
+    evaluation_threshold: 0.1
+    batch_interval_for_log: 100

@@ -1,0 +1,12 @@
+file:
+  dataset: 'dataset'
+  src:
+    tasks: 'src/tasks'
+    models: 'src/models'
+    arguments: 'src/arguments'
+    utilities: 'src/utilities'
+  data:
+    log: 'data/log'
+    model: 'data/model'
+  web: 'web'
+

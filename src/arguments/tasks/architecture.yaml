@@ -1,0 +1,28 @@
+tasks:
+  general:
+  translation:
+    dataset:
+      corpus_en: 'dataset/train.en'
+      corpus_zh: 'dataset/train.zh'
+      train_en: 'dataset/for_translation_nobert/train.en'    #'dataset/for_translation_nobert/train.en'    #'dataset/fast_train.en' #
+      train_zh: 'dataset/for_translation_nobert/train.zh'    #'dataset/for_translation_nobert/train.zh'    #'dataset/fast_train.zh' #
+      test_en: 'dataset/for_translation_nobert/test.en'      #'dataset/for_translation_nobert/test.en'    #'dataset/fast_test.en'  #
+      test_zh: 'dataset/for_translation_nobert/test.zh'      #'dataset/for_translation_nobert/test.zh'    #'dataset/fast_test.zh'  #
+      train_set_size: 7685253           # the amount of train examples, including train set and valid set
+    trans_direct: 'en2zh'     # 'en2zh' or 'zh2en'
+    word_vector:
+      use_bert: #'dynamic'  # null or none or static or dynamic
+      word_vectors_en: 'dataset/word_vector/glove.6B.300d.txt'
+      word_vectors_zh: 'dataset/word_vector/sgns.wiki.bigram-char'
+      tokenizer_en: 'tokenize_en_bySpacy'
+      tokenizer_zh: 'tokenize_zh_bySplit'
+    bert_model:
+      bert_model_zh: 'dataset/bert_model/chinese-bert-wwm-ext'
+      bert_model_en: 'dataset/bert_model/bert-base-uncased'
+    model: 'starriver_transformer'  # starriver_transformer or torch_transformer
+    criterion: 'celoss'  # lsceloss or celoss
+    optimizer: 'adam'
+    lr_scheduler: 'cosdecay'   # steplr or warmup or cosdecay
+    evaluator: 'bleu'
+    model_creator_module: 'build_model'
+    model_creator_class: 'TranslatorModel'
