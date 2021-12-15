@@ -1,9 +1,14 @@
 optimizer:
   general:
   adam:
-    lr: 0.001
+    lr: !!float 1e-3
     beta1: 0.9
     beta2: 0.98
+    eps: !!float 1e-9
+  adamw:
+    lr: !!float 1e-4
+    beta1: 0.9
+    beta2: 0.999
     eps: !!float 1e-9
 
 lr_scheduler:
@@ -16,7 +21,7 @@ lr_scheduler:
     step_size: 1
     lr_warmup_step: 40
   cosdecay:
-    init_lr: 0.0003
-    mini_lr: !!float 1e-6
+    init_lr: !!float 2e-4      #翻译任务：1e-4，ner任务：5e-5
+    mini_lr: !!float 1e-7
     step_size: 100
     warmup_size: 0.02

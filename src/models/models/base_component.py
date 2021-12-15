@@ -4,26 +4,22 @@ import torch
 import torch.nn as nn
 
 
-class PositionalEmbedding(nn.Module):
-    def __init__(self, d_vocab, d_model, max_len, p_drop):
+class TokenEmbedding(nn.Module):
+    def __init__(self, d_vocab, d_model):
         super().__init__()
         self.d_vocab = d_vocab
         self.d_model = d_model
-        self.max_len = max_len
-        self.p_drop = p_drop
         self.embedding = nn.Embedding(d_vocab, d_model)
-        self.p_e = PositionalEncoding(d_model, max_len, p_drop)
 
     def forward(self, x):
         # input size:  *,N,L
         # output size: *,N,L,D_model
         y = self.embedding(x) * math.sqrt(self.d_model)
-        e = self.p_e(y)
-        return e
+        return y
 
 
 class PositionalEncoding(nn.Module):
-    __instance = None
+    # __instance = None
     #  应用了单例模式
     def __init__(self, d_model, max_len, p_drop):
         super().__init__()
@@ -39,10 +35,10 @@ class PositionalEncoding(nn.Module):
         self.register_buffer('pe', pe)    #反向传播不会更新weight
         self.dropout = nn.Dropout(p=self.p_drop)
 
-    def __new__(cls, *args, **kargs):
-        if cls.__instance is None:
-            cls.__instance = nn.Module.__new__(cls)
-        return cls.__instance
+    # def __new__(cls, *args, **kargs):
+    #     if cls.__instance is None:
+    #         cls.__instance = nn.Module.__new__(cls)
+    #     return cls.__instance
 
     def forward(self, x):
         # input size:  *,N,L,D_model

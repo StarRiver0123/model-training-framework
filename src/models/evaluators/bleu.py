@@ -15,7 +15,8 @@ class TranslationBleuScore(nn.Module):
         #   predict: N,L,C; target: N,L
         # output: scalar
         # mask = torch.full(target.shape, True)  # 注意这里不能用full_like，因为填完之后True变成1，则不能用作布尔索引了
-        predict = F.softmax(predict, dim=-1).argmax(dim=-1)
+        if predict.dim() == 3:
+            predict = F.softmax(predict, dim=-1).argmax(dim=-1)
         target = target
         # remove end_index and pad_index
         if (self.end_index is not None) and (self.pad_index is None):

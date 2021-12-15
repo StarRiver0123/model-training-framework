@@ -3,16 +3,25 @@ model:
   starriver_transformer:
     num_encoder_layers : 6
     num_decoder_layers : 6
-    d_model: 300
-    d_ff: 1024
-    max_len: 32
-    nhead: 5
+    d_model: 768 #300
+    d_ff: 2048 #1024
+    max_len: 128
+    nhead: 12  #5
     p_drop: 0.1
   torch_transformer:
     num_encoder_layers : 6
     num_decoder_layers : 6
-    d_model: 300
-    d_ff: 1024
-    max_len: 32
-    nhead: 5
+    d_model: 300 #768
+    d_ff: 1024 #3072
+    max_len: 128
+    nhead: 5  #12
     p_drop: 0.1
+  bert_crf:
+    max_len: 64   # must be smaller than 512
+    split_overlap_size: 8
+  twin_textrnn:
+    d_model: 300
+    hidden_size: 128
+    num_layers: 3
+    p_drop: 0.1
+#    max_len: 512

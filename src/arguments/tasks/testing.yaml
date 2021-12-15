@@ -1,7 +1,14 @@
 testing:
   general:
   translation:
-#    model_save_mode: 'state'   #  'model' or 'state'
-    saved_model_file: '20211119001739_000_5.634_0.128_state_dict.pmd' #'20211103195003_008_5.730_0.075_state_dict.pmd'
+    saved_model_file: '20211215135712_039_0.036_0.090_state_dict.pt'
+    batch_size: 1    # must set to 1
+    batch_interval_for_log: 1
+  ner:
+    saved_model_file: 'resume_dataset_state_dict.pmd'
+    batch_size: 1    # must set to 1
+    batch_interval_for_log: 1
+  answer_grade:
+    saved_model_file: 'answer_grade.pmd'
     batch_size: 1    # must set to 1
     batch_interval_for_log: 1

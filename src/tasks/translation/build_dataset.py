@@ -3,8 +3,7 @@ from torchtext.legacy.vocab import Vectors
 from torchtext.legacy.data import Field, BucketIterator
 from sklearn.model_selection import train_test_split
 from src.utilities.load_data import *
-import spacy
-spacy_tokenizer = spacy.load("en_core_web_sm")
+from src.models.tokenizers.tokenizer import *
 
 
 def load_train_valid_split_set(arguments):
@@ -53,32 +52,32 @@ def get_data_iterator(arguments, train_set=None, valid_set=None, test_set=None):
     module_obj = sys.modules['src.utilities.load_data']
     trans_direct = arguments['tasks'][running_task]['trans_direct']
     assert (trans_direct != 'en2zh') or (trans_direct != 'zh2en')
-    use_bert = arguments['tasks'][running_task]['word_vector']['use_bert']
+    use_bert = arguments['tasks'][running_task]['use_bert']
     batch_size = arguments['training'][running_task]['batch_size']
     batch_size_for_test = arguments['testing'][running_task]['batch_size']
     device = arguments['general']['device']
     # compute the field
-    if (use_bert != 'static') and (use_bert != 'dynamic'):
+    if use_bert not in ['static', 'dynamic']:
         vector_file_en = arguments['general']['project_root'] + os.path.sep + arguments['tasks'][running_task]['word_vector']['word_vectors_en']
         vector_file_zh = arguments['general']['project_root'] + os.path.sep + arguments['tasks'][running_task]['word_vector']['word_vectors_zh']
-        fun_name_en = arguments['tasks'][running_task]['word_vector']['tokenizer_en']
-        fun_name_zh = arguments['tasks'][running_task]['word_vector']['tokenizer_zh']
-        start_token = arguments['dataset']['general']['start_token']
-        end_token = arguments['dataset']['general']['end_token']
+        fun_name_en = arguments['tasks'][running_task]['tokenizer']['tokenizer_en']
+        fun_name_zh = arguments['tasks'][running_task]['tokenizer']['tokenizer_zh']
+        sos_token = arguments['dataset']['general']['sos_token']
+        eos_token = arguments['dataset']['general']['eos_token']
         unk_token = arguments['dataset']['general']['unk_token']
         pad_token = arguments['dataset']['general']['pad_token']
         if fun_name_en == 'tokenize_en_bySpacy':
-            FIELD_en = Field(sequential=True, use_vocab=True, tokenize='spacy', tokenizer_language='en_core_web_sm',
+            FIELD_en = Field(sequential=True, use_vocab=True, tokenize='spacy', tokenizer_language='en',
                              lower=True, batch_first=True,
-                             fix_length=None, init_token=start_token, eos_token=end_token, pad_token=pad_token,
+                             fix_length=None, init_token=sos_token, eos_token=eos_token, pad_token=pad_token,
                              unk_token=unk_token)
         else:
             FIELD_en = Field(sequential=True, use_vocab=True, tokenize=getattr(module_obj, fun_name_en), lower=True, batch_first=True,
-                             fix_length=None, init_token=start_token, eos_token=end_token, pad_token=pad_token, unk_token=unk_token)
+                             fix_length=None, init_token=sos_token, eos_token=eos_token, pad_token=pad_token, unk_token=unk_token)
 
 
         FIELD_zh = Field(sequential=True, use_vocab=True, tokenize=getattr(module_obj, fun_name_zh), batch_first=True,
-                             fix_length=None, init_token=start_token, eos_token=end_token, pad_token=pad_token, unk_token=unk_token)
+                             fix_length=None, init_token=sos_token, eos_token=eos_token, pad_token=pad_token, unk_token=unk_token)
         if trans_direct == 'en2zh':
             SOURCE_FIELD = FIELD_en
             TARGET_FIELD = FIELD_zh
@@ -92,15 +91,27 @@ def get_data_iterator(arguments, train_set=None, valid_set=None, test_set=None):
         configer_zh = get_bert_configer(arguments, language='zh')
         if ('bert' not in arguments['dataset'].keys()) or (arguments['dataset']['bert'] is None):
             arguments['dataset'].update({'bert': {}})
-        arguments['dataset']['bert'].update({'start_token': tokenizer_en.cls_token,
-                                             'end_token': tokenizer_en.sep_token,
+        arguments['dataset']['bert'].update({'sos_token': tokenizer_en.cls_token,
+                                             'eos_token': tokenizer_en.sep_token,
                                              'unk_token': tokenizer_en.unk_token,
                                              'pad_token': tokenizer_en.pad_token,
-                                             'start_idx': tokenizer_en.cls_token_id,
-                                             'end_idx': tokenizer_en.sep_token_id,
+                                             'sos_idx': tokenizer_en.cls_token_id,
+                                             'eos_idx': tokenizer_en.sep_token_id,
                                              'unk_idx': tokenizer_en.unk_token_id,
                                              'pad_idx': tokenizer_en.pad_token_id
                                               })
+
+        # if use_bert == 'static':
+        #     FIELD_en = Field(sequential=True, use_vocab=True, tokenize=tokenizer_en.tokenize, batch_first=True,
+        #                      fix_length=None, init_token=None, eos_token=None, pad_token=None, unk_token=None)
+        #     FIELD_zh = Field(sequential=True, use_vocab=True, tokenize=tokenizer_zh.tokenize, batch_first=True,
+        #                      fix_length=None, init_token=None, eos_token=None, pad_token=None, unk_token=None)
+        # else:    #这个还需要修改
+        # 如果不需要field维护词典的话，可以这么写，直接用bert模型的分词和数字化。
+        # FIELD_en = Field(sequential=True, use_vocab=False, tokenize=tokenizer_en.tokenize, preprocessing=tokenizer_en.convert_tokens_to_ids, batch_first=True,
+        #                  fix_length=None, init_token=tokenizer_en.cls_token_id, eos_token=tokenizer_en.eos_token_id, pad_token=tokenizer_en.pad_token_id, unk_token=tokenizer_en.unk_token_id)
+        # FIELD_zh = Field(sequential=True, use_vocab=False, tokenize=tokenizer_zh.tokenize, preprocessing=tokenizer_zh.convert_tokens_to_ids, batch_first=True,
+        #                  fix_length=None, init_token=tokenizer_zh.cls_token_id, eos_token=tokenizer_zh.eos_token_id, pad_token=tokenizer_zh.pad_token_id, unk_token=tokenizer_zh.unk_token_id)
         FIELD_en = Field(sequential=True, use_vocab=True, tokenize=tokenizer_en.tokenize, batch_first=True,
                          fix_length=None, init_token=None, eos_token=None, pad_token=None, unk_token=None)
         FIELD_zh = Field(sequential=True, use_vocab=True, tokenize=tokenizer_zh.tokenize, batch_first=True,
@@ -119,13 +130,19 @@ def get_data_iterator(arguments, train_set=None, valid_set=None, test_set=None):
             tokenizer_tgt = tokenizer_en
             configer_src = configer_zh
             configer_tgt = configer_en
+        task_model = arguments['tasks'][running_task]['model']
+        arguments['model'][task_model].update({'d_model': configer_src.hidden_size,
+                                               'nhead': configer_src.num_attention_heads,
+                                               'src_vocab_len': configer_src.vocab_size,
+                                               'tgt_vocab_len': configer_tgt.vocab_size})
 
     if train_set is not None:
         train_examples = DataExamples_withTorchText(train_set, SOURCE_FIELD, TARGET_FIELD)
         train_iter = BucketIterator(dataset=train_examples, batch_size=batch_size, sort_key=lambda x: len(x.Source),
                                     shuffle=True, sort_within_batch=True, sort=True, device=device)
+        arguments['tasks'][running_task]['dataset'].update({'train_set_size': len(train_examples.examples)})
         # build the vocab and vector
-        if (use_bert != 'static') and (use_bert != 'dynamic'):
+        if use_bert not in ['static', 'dynamic']:
             if trans_direct == 'en2zh':
                 vectors_src = Vectors(name=vector_file_en)
                 vectors_tgt = Vectors(name=vector_file_zh)
@@ -134,18 +151,19 @@ def get_data_iterator(arguments, train_set=None, valid_set=None, test_set=None):
                 vectors_tgt = Vectors(name=vector_file_en)
             SOURCE_FIELD.build_vocab(train_examples, vectors=vectors_src)
             TARGET_FIELD.build_vocab(train_examples, vectors=vectors_tgt)
-            arguments['dataset']['general'].update({'start_idx': SOURCE_FIELD.vocab.stoi[start_token],
-                                                  'end_idx': SOURCE_FIELD.vocab.stoi[end_token],
+            arguments['dataset']['general'].update({'sos_idx': SOURCE_FIELD.vocab.stoi[sos_token],
+                                                  'eos_idx': SOURCE_FIELD.vocab.stoi[eos_token],
                                                   'unk_idx': SOURCE_FIELD.vocab.stoi[unk_token],
                                                   'pad_idx': SOURCE_FIELD.vocab.stoi[pad_token]
                                                   })
-        # build the vocab only
+            used_model = arguments['tasks'][running_task]['model']
+            arguments['model'][used_model].update({'src_vocab_len': SOURCE_FIELD.vocab.vectors.shape[0],
+                                                   'tgt_vocab_len': TARGET_FIELD.vocab.vectors.shape[0]})
+        #build the vocab only
         else:
             init_field_vocab_special_tokens_from_model(SOURCE_FIELD, tokenizer_src)
             init_field_vocab_special_tokens_from_model(TARGET_FIELD, tokenizer_tgt)
-            task_model = arguments['tasks'][running_task]['model']
-            arguments['model'][task_model].update({'d_model': configer_src.hidden_size,
-                                                   'nhead': configer_src.num_attention_heads})
+
 
         # 如果train_set为空，则不管valid_set是否为空，都不做处理，因为valid是针对train的结果而言的。valid可以看作是train的一个过程。
         if valid_set is not None:
@@ -155,7 +173,7 @@ def get_data_iterator(arguments, train_set=None, valid_set=None, test_set=None):
                                         sort=True, train=False, device=device)
     if test_set is not None:
         test_examples = DataExamples_withTorchText(test_set, SOURCE_FIELD, TARGET_FIELD)
-        test_iter = BucketIterator(dataset=test_examples, batch_size=batch_size_for_test, train=False,
+        test_iter = BucketIterator(dataset=test_examples, batch_size=batch_size_for_test, shuffle=True, train=False,
                                    sort=False, device=device)
 
     if train_set is not None:

@@ -7,7 +7,7 @@ import torch
 from collections import defaultdict
 from transformers import BertTokenizer, BertModel
 
-model_name = 'G:\\AI\\projects\\AIPF\\dataset\\bert_model\\chinese-bert-wwm-ext'
+model_name = 'G:\\AI\\projects\\NLPCF\\dataset\\bert_model\\chinese-bert-wwm-ext'
 tokenizer = BertTokenizer.from_pretrained(model_name)
 model = BertModel.from_pretrained(model_name)
 

@@ -1,10 +1,12 @@
 training:
   general:
+    max_norm: 5
   translation:
     epochs: 50
-    batch_size: 8
-    valid_size: 0.1    # proportion of the sum of train set and valid set
-    test_size: 0.1     # proportion of the sum of train set and valid set and test set
+    batch_size: 128
+    valid_size: 0.002    # proportion of the sum of train set and valid set
+    test_size: 0.002     # proportion of the sum of train set and valid set and test set
+    bert_full_fine_tuning: !!bool True
     validating: !!bool True
     save_model: !!bool True
     model_save:
@@ -14,6 +16,42 @@ training:
       save_optimizer: !!bool False
       save_lr_scheduler: !!bool False
       save_evaluator: !!bool False
-    loss_threshold: 1
-    evaluation_threshold: 0.1
+    loss_threshold: 2
+    evaluation_threshold: 0.05
     batch_interval_for_log: 100
+  ner:
+    epochs: 50
+    batch_size: 8
+    valid_size: 0.1    # proportion of the sum of train set and valid set
+    test_size: 0.1     # proportion of the sum of train set and valid set and test set
+    full_fine_tuning: !!bool True
+    validating: !!bool True
+    save_model: !!bool True
+    model_save:
+      save_mode: 'state'   #  'model' or 'state'
+      save_model: !!bool True
+      save_criterion: !!bool False
+      save_optimizer: !!bool False
+      save_lr_scheduler: !!bool False
+      save_evaluator: !!bool False
+    loss_threshold: 0.5
+    evaluation_threshold: 0.7
+    batch_interval_for_log: 10
+  answer_grade:
+    epochs: 50
+    batch_size: 32
+    valid_size: 0.05    # proportion of the sum of train set and valid set
+    test_size: 0.05     # proportion of the sum of train set and valid set and test set
+    full_fine_tuning: !!bool True
+    validating: !!bool True
+    save_model: !!bool True
+    model_save:
+      save_mode: 'state'   #  'model' or 'state'
+      save_model: !!bool True
+      save_criterion: !!bool False
+      save_optimizer: !!bool False
+      save_lr_scheduler: !!bool False
+      save_evaluator: !!bool False
+    loss_threshold: 0.5
+    evaluation_threshold: 0.5
+    batch_interval_for_log: 10

@@ -10,6 +10,7 @@ class Tester():
         self.arguments = arguments
         self.running_task = arguments['general']['running_task']
         self.used_model = arguments['tasks'][self.running_task]['model']
+        self.max_len = arguments['model'][self.used_model]['max_len']
         self.batch_interval_for_log = arguments['testing'][self.running_task]['batch_interval_for_log']
         self.batch_size_for_test = arguments['testing'][self.running_task]['batch_size']
         assert self.batch_size_for_test == 1
@@ -21,7 +22,7 @@ class Tester():
         self.pad_token = arguments['dataset']['general']['pad_token']
         self.logger = arguments['general']['logger']
 
-    def test(self, model, test_iter, compute_predict_func, compute_predict_outer_params):
+    def test(self, model, test_iter, compute_predict_evaluation_func, compute_predict_evaluation_outer_params):
         model.model.eval()
         with torch.no_grad():
             total_evaluation = 0
@@ -34,14 +35,13 @@ class Tester():
                 else:
                     do_log = False
                 log_string_list = []
-                predict, target = compute_predict_func(model, test_example, self.device,
-                                                       do_log, log_string_list, **compute_predict_outer_params)
+                predict, target, batch_evaluation = compute_predict_evaluation_func(model, test_example, self.max_len, self.device,
+                                                       do_log, log_string_list, **compute_predict_evaluation_outer_params)
                 # 模型的输出维度是N，L，D_target_vocab_len
-                batch_evaluation = model.evaluator(predict, target)
                 total_evaluation += batch_evaluation
                 mean_evaluation = total_evaluation / (i+1)
                 if do_log:
-                    self.logger.info("testing sentence: %d; sentence evaluation: %0.3f, mean evaluation: %0.3f",
+                    self.logger.info("testing sentence: %d; sentence evaluation: %0.5f, mean evaluation: %0.5f",
                                      i, batch_evaluation, mean_evaluation,
                                      extra={'file_name': os.path.basename(__file__), 'line_no': sys._getframe().f_lineno})
                     for log_str in log_string_list:

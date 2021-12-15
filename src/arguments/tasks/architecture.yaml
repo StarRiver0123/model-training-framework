@@ -1,28 +1,83 @@
 tasks:
   general:
+  neo4j:
+    server: 'http://localhost:7474'
+    user: 'neo4j'
+    password: '123456'
   translation:
-    dataset:
-      corpus_en: 'dataset/train.en'
-      corpus_zh: 'dataset/train.zh'
-      train_en: 'dataset/for_translation_nobert/train.en'    #'dataset/for_translation_nobert/train.en'    #'dataset/fast_train.en' #
-      train_zh: 'dataset/for_translation_nobert/train.zh'    #'dataset/for_translation_nobert/train.zh'    #'dataset/fast_train.zh' #
-      test_en: 'dataset/for_translation_nobert/test.en'      #'dataset/for_translation_nobert/test.en'    #'dataset/fast_test.en'  #
-      test_zh: 'dataset/for_translation_nobert/test.zh'      #'dataset/for_translation_nobert/test.zh'    #'dataset/fast_test.zh'  #
-      train_set_size: 7685253           # the amount of train examples, including train set and valid set
     trans_direct: 'en2zh'     # 'en2zh' or 'zh2en'
-    word_vector:
-      use_bert: #'dynamic'  # null or none or static or dynamic
-      word_vectors_en: 'dataset/word_vector/glove.6B.300d.txt'
-      word_vectors_zh: 'dataset/word_vector/sgns.wiki.bigram-char'
-      tokenizer_en: 'tokenize_en_bySpacy'
-      tokenizer_zh: 'tokenize_zh_bySplit'
+    dataset:
+      train_json: 'dataset/for_translation/translation2019zh/translation2019zh_train.json'
+      valid_json: 'dataset/for_translation/translation2019zh/translation2019zh_valid.json'
+      corpus_en: 'dataset/for_translation/train.en'
+      corpus_zh: 'dataset/for_translation/train.zh'
+      train_en: 'dataset/for_translation/use_static_bert/train_en.txt'
+      train_zh: 'dataset/for_translation/use_static_bert/train_zh.txt'
+      test_en: 'dataset/for_translation/use_static_bert/test_en.txt'
+      test_zh: 'dataset/for_translation/use_static_bert/test_zh.txt'
+    use_bert: 'static'  # null or none or static or dynamic
     bert_model:
       bert_model_zh: 'dataset/bert_model/chinese-bert-wwm-ext'
       bert_model_en: 'dataset/bert_model/bert-base-uncased'
+    tokenizer:
+      tokenizer_en: 'tokenize_en_byJieba'
+      tokenizer_zh: 'tokenize_zh_byJieba'
+    word_vector:
+      word_vectors_en: 'dataset/word_vector/glove.6B.300d.txt'
+      word_vectors_zh: 'dataset/word_vector/sgns.wiki.bigram-char'
     model: 'starriver_transformer'  # starriver_transformer or torch_transformer
-    criterion: 'celoss'  # lsceloss or celoss
+    criterion: 'lsceloss'  # lsceloss or celoss
     optimizer: 'adam'
     lr_scheduler: 'cosdecay'   # steplr or warmup or cosdecay
     evaluator: 'bleu'
     model_creator_module: 'build_model'
     model_creator_class: 'TranslatorModel'
+  ner:
+    dataset:
+      corpus_tagging: 'dataset/for_ner/tagging.txt'
+      train_tagging: 'dataset/for_ner/train_tagging.txt'
+      test_tagging: 'dataset/for_ner/test_tagging.txt'
+      gen_num_total_examples: 11000
+      ner_parameter: 'dataset/for_ner/ner_parameter.pkl'
+    use_bert: 'dynamic'  # null or none or static or dynamic
+    bert_model:
+      bert_model_zh: 'dataset/bert_model/chinese-bert-wwm-ext'
+      bert_model_en: 'dataset/bert_model/bert-base-uncased'
+    tokenizer:
+      tokenizer_en: 'tokenize_en_bySpacy'
+      tokenizer_zh: 'tokenize_zh_bySplit'
+    word_vector:
+      word_vectors_en: 'dataset/word_vector/glove.6B.300d.txt'
+      word_vectors_zh: 'dataset/word_vector/sgns.wiki.bigram-char'
+    model: 'bert_crf'
+    #criterion: 'celoss'  # lsceloss or celoss
+    optimizer: 'adamw'
+    lr_scheduler: 'cosdecay'   # steplr or warmup or cosdecay
+    evaluator: 'f1_score'
+    model_creator_module: 'build_model'
+    model_creator_class: 'NERModel'
+  answer_grade:
+    dataset:
+      corpus_qa: 'dataset/for_answer_grade/data_src.csv'
+      train_q: 'dataset/for_answer_grade/train_q.txt'
+      train_a: 'dataset/for_answer_grade/train_a.txt'
+      test_q: 'dataset/for_answer_grade/test_q.txt'
+      test_a: 'dataset/for_answer_grade/test_a.txt'
+      gen_num_total_examples: 10000
+    use_bert: !!bool False
+    bert_model:
+      bert_model_zh: 'dataset/bert_model/chinese-bert-wwm-ext'
+      bert_model_en: 'dataset/bert_model/bert-base-uncased'
+    tokenizer:
+      tokenizer_en: 'tokenize_en_bySpacy'
+      tokenizer_zh: 'tokenize_zh_byJieba'
+    word_vector:
+      word_vectors_en: 'dataset/word_vector/glove.6B.300d.txt'
+      word_vectors_zh: 'dataset/word_vector/sgns.wiki.bigram-char'
+    model: 'twin_textrnn'
+    criterion: 'triple'
+    optimizer: 'adam'
+    lr_scheduler: 'cosdecay'   # steplr or warmup or cosdecay
+    evaluator: 'cosine_similarity'
+    model_creator_module: 'build_model'
+    model_creator_class: 'AnswerGradeModel'

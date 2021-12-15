@@ -2,7 +2,7 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from src.models.models.base_component import PositionalEmbedding, Predictor, cat_seq_pad_mask
+from src.models.models.base_component import TokenEmbedding, PositionalEncoding, Predictor, cat_seq_pad_mask
 
 
 # 实现的是pre-LN结构
@@ -20,8 +20,9 @@ class StarRiverTransformer(nn.Module):
         self.tgt_vocab_len = tgt_vocab_len
         self.src_bert_model = None
         self.tgt_bert_model = None
-        self.encoder_embedding = PositionalEmbedding(self.src_vocab_len, self.d_model, self.max_len, self.p_drop)
-        self.decoder_embedding = PositionalEmbedding(self.tgt_vocab_len, self.d_model, self.max_len, self.p_drop)
+        self.encoder_token_embedding = TokenEmbedding(self.src_vocab_len, self.d_model)
+        self.decoder_token_embedding = TokenEmbedding(self.tgt_vocab_len, self.d_model)
+        self.positional_encoding = PositionalEncoding(self.d_model, self.max_len, self.p_drop)
         self.encoder_layers = Encoder(self.d_model, self.nhead, self.d_ff, self.p_drop, self.num_encoder_layers)
         self.decoder_layers = Decoder(self.d_model, self.nhead, self.d_ff, self.p_drop, self.num_decoder_layers)
         self.predictor = Predictor(self.d_model, self.tgt_vocab_len)
@@ -30,15 +31,15 @@ class StarRiverTransformer(nn.Module):
         # input size:  N,L
         # output size: N,L,D_target
         if self.src_bert_model is None:
-            enc_emb = self.encoder_embedding(enc_input)
+            enc_emb = self.positional_encoding(self.encoder_token_embedding(enc_input))
         else:
             with torch.no_grad():
-                enc_emb = self.src_bert_model(enc_input).last_hidden_state
+                enc_emb = self.positional_encoding(self.src_bert_model(enc_input).last_hidden_state)
         if self.tgt_bert_model is None:
-            dec_emb = self.decoder_embedding(dec_input)
+            dec_emb = self.positional_encoding(self.decoder_token_embedding(dec_input))
         else:
             with torch.no_grad():
-                dec_emb = self.tgt_bert_model(dec_input).last_hidden_state
+                dec_emb = self.positional_encoding(self.tgt_bert_model(dec_input).last_hidden_state)
         enc_out = self.encoder_layers(enc_emb, src_key_padding_mask=src_key_padding_mask)
         dec_out = self.decoder_layers(dec_emb, enc_out, tgt_mask=tgt_mask, tgt_key_padding_mask=tgt_key_padding_mask, memory_key_padding_mask=memory_key_padding_mask)
         return self.predictor(dec_out)
@@ -47,20 +48,20 @@ class StarRiverTransformer(nn.Module):
         # input size:  N,L
         # output size: N,L,D
         if self.src_bert_model is None:
-            enc_emb = self.encoder_embedding(enc_input)  # enc_input: N,L,D
+            enc_emb = self.positional_encoding(self.encoder_token_embedding(enc_input))  # enc_input: N,L,D
         else:
             with torch.no_grad():
-                enc_emb = self.src_bert_model(enc_input).last_hidden_state
+                enc_emb = self.positional_encoding(self.src_bert_model(enc_input).last_hidden_state)
         return self.encoder_layers(enc_emb, src_key_padding_mask=src_key_padding_mask)
 
     def decoder(self, dec_input, enc_out, tgt_mask=None, tgt_key_padding_mask=None, memory_key_padding_mask=None):
         # input size:  N,L
         # output size: N,L,D
         if self.tgt_bert_model is None:
-            dec_emb = self.decoder_embedding(dec_input)  # dec_input: N,L,D
+            dec_emb = self.positional_encoding(self.decoder_token_embedding(dec_input))  # dec_input: N,L,D
         else:
             with torch.no_grad():
-                dec_emb = self.tgt_bert_model(dec_input).last_hidden_state
+                dec_emb = self.positional_encoding(self.tgt_bert_model(dec_input).last_hidden_state)
         return self.decoder_layers(dec_emb, enc_out, tgt_mask=tgt_mask, tgt_key_padding_mask=tgt_key_padding_mask,
                 memory_key_padding_mask=memory_key_padding_mask)
 

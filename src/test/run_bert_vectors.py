@@ -21,15 +21,20 @@ from src.utilities.load_data import *
 # ids_zh3 = (tokenizer_zh.encode('花了2765000元'))
 # print(ids_zh)
 # print(ids_zh2)
-# print(ids_zh3)
+# print(ids_zh3)tags
 
 
-model_name_en = 'G:\\AI\\projects\\AIPF\\dataset\\bert_model\\bert-base-uncased'
+model_name_en = 'G:\\AI\\projects\\NLPCF\\dataset\\bert_model\\bert-base-uncased'
 tokenizer_en = BertTokenizer.from_pretrained(model_name_en)
 model_en = BertModel.from_pretrained(model_name_en)
 configer_en = BertConfig.from_pretrained(model_name_en)
 ids_en = tokenizer_en("This is Mike's book with value of $25.32.", return_tensors='pt')
 outs_en = model_en(**ids_en)
+tokens = tokenizer_en.tokenize("This is Mike's book with value of $25.32.")
+ids = tokenizer_en.convert_tokens_to_ids(tokens)
+
+ids2 = tokenizer_en.encode("This is Mike's book with value of $25.32.")
+text2 = tokenizer_en.convert_ids_to_tokens(ids2)
 # print(outs_en.last_hidden_state)
 # print(tokenizer_en.tokenize('this is your book with value of $25.85.'))
 print(tokenize_en_bySplit("This is Mike's book with value of $25.32."))
