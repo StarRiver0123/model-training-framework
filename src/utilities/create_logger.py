@@ -3,13 +3,11 @@ import time
 import os
 import sys
 
-def create_logger(arguments):
-    running_task = arguments['general']['running_task']
-    project_root = arguments['general']['project_root']
-    log_root = arguments['file']['data']['log']
-    sys_log_level = arguments['logging']['general']['sys_log_level']
-    file_log_level = arguments['logging']['general']['file_log_level']
-    console_log_level = arguments['logging']['general']['console_log_level']
+def create_logger(log_path, sys_log_level, file_log_level, console_log_level):
+    # log_path = arguments['log_root']
+    # sys_log_level = arguments['logging']['sys_log_level']
+    # file_log_level = arguments['logging']['file_log_level']
+    # console_log_level = arguments['logging']['console_log_level']
 
     if sys_log_level.lower() == 'debug':
         sys_log_level = logging.DEBUG
@@ -60,9 +58,9 @@ def create_logger(arguments):
     logger.setLevel(sys_log_level)
     log_format = logging.Formatter("%(asctime)s - %(file_name)s[line:%(line_no)s] - %(levelname)s: %(message)s")
 
-    log_path = project_root + os.path.sep + log_root + os.path.sep + running_task
+    # log_path = log_root + os.path.sep + running_app + os.path.sep + running_task
     if not os.path.exists(log_path):
-        os.mkdir(log_path)
+        os.makedirs(log_path)
     time_stamp = time.strftime('%Y%m%d%H%M%S', time.localtime())
     log_file = log_path + os.path.sep + time_stamp + '.log'
     fh = logging.FileHandler(log_file, encoding='utf-8')  # 如果不指定编码，可能会出现Python UnicodeEncodeError: 'gbk' codec can't encode character

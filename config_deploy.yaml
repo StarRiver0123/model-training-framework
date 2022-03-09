@@ -1,0 +1,15 @@
+# file roots:
+deploy_root: 'deploy'                 # relative path in project_root
+service_src_root: 'services/src'      # relative path in deploy_root/<app_name>/
+service_data_root: 'services/data'    # relative path in deploy_root/<app_name>/
+flask_server_root: 'flask_server'     # relative path in deploy_root/<app_name>/
+django_server_root: 'django_server'   # relative path in deploy_root/<app_name>/
+server_start_file: 'run_service.py'
+app_config_file: 'config_app.yaml'
+
+# project running arguments
+running_apps:
+  - app_name: 'demo_app2'
+    web_framework: 'django'
+#  - app_name: 'demo_app'
+#    web_framework: 'flask'

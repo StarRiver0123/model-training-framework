@@ -1,0 +1,4 @@
+neo4j:
+  server: 'http://localhost:7474'
+  user: 'neo4j'
+  password: '123456'

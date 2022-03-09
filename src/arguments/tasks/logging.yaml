@@ -1,6 +1,0 @@
-logging:
-  general:
-    sys_log_level: 'debug'    # must be: debug, info, warning, error, critical
-    file_log_level: 'debug'
-    console_log_level: 'info'
-  translation:

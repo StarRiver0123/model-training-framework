@@ -1,0 +1,4 @@
+vector_file: "wiki.Mode"
+template_file: "robot_template.xml"
+corpus_file: "conversation_test.txt"
+url_prefix: "https://api.ownthink.com/bot?appid=xiaosi&userid=user&spoken="

@@ -1,0 +1,22 @@
+# file roots:
+dataset_root: 'resources/datasets'             # relative path in project root
+bert_model_root: 'resources/bert_models'       # relative path in project root
+word_vector_root: 'resources/word_vectors'     # relative path in project root
+app_root: 'src/applications'                   # relative path in project root
+task_root: 'tasks'                             # relative path in app_root/<app_name>/
+task_config_file: 'config_task.yaml'
+log_root: 'data/logs'                          # relative path in project root
+check_point_root: 'data/check_points'          # relative path in project root
+#data_root:
+#  - 'data'
+#  - log_root: 'log'
+#    model_root: 'model'
+
+# project running arguments
+running_app: 'demo_app'
+running_task: 'answer_grade'
+running_pipeline:
+#  - preprocess
+  - train_model
+#  - test_model
+#  - apply_model

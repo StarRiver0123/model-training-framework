@@ -1,8 +1,0 @@
-dataset:
-  general:
-    sos_token: '<sos>'
-    eos_token: '<eos>'
-    pad_token: '<pad>'
-    unk_token: '<unk>'
-  bert: # will be read from model config
-  bert_crf:

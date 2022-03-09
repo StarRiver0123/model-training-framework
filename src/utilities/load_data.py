@@ -1,9 +1,33 @@
 import re, os, random
 from tqdm import tqdm
+import yaml
 import torchtext.legacy.data as dt
+from multiprocessing import cpu_count, Process, Pool
 from transformers import BertTokenizer, BertModel, BertConfig
 from collections import defaultdict
+from torch.utils.data import DataLoader
 
+def load_config(config_file):
+    args = {}
+    with open(config_file, 'r', encoding='utf-8') as f:
+        args = yaml.safe_load(f.read())
+    return args
+
+def load_args_from_yamls(project_root, arg_file_root):
+    arguments_root = project_root + os.path.sep + arg_file_root
+    arguments_paths = []
+    arguments_paths.append(arguments_root)
+    arguments = {}
+    while len(arguments_paths):
+        f_p = arguments_paths.pop()
+        if os.path.isfile(f_p):
+            with open(f_p, 'r', encoding='utf-8') as f:
+                args = yaml.safe_load(f.read())
+            arguments.update(args)
+        if os.path.isdir(f_p):
+            for sub_f_p in os.listdir(f_p):
+                arguments_paths.append(f_p + os.path.sep + sub_f_p)
+    return arguments
 
 def get_txt_from_file(file, encoding='utf-8'):
     data_set = []
@@ -15,7 +39,7 @@ def get_txt_from_file(file, encoding='utf-8'):
 def put_txt_to_file(txt_list, abspath_file, encoding='utf-8'):
     file_path = os.path.dirname(abspath_file)
     if not os.path.exists(file_path):
-        os.mkdir(file_path)
+        os.makedirs(file_path)
     with open(abspath_file, "w", encoding=encoding) as f:
         for txt in txt_list:
             if txt.endswith('\n'):
@@ -24,18 +48,81 @@ def put_txt_to_file(txt_list, abspath_file, encoding='utf-8'):
                 f.write(txt + '\n')
 
 
-class DataExamples_withTorchText(dt.Dataset):
-    def __init__(self, data_tuple, source_field, target_field, is_train=True):
-        fields = [("Source", source_field), ("Target", target_field)]
-        examples = []
-        if is_train:
-            examples = [dt.Example.fromlist(data_pair, fields) for data_pair in tqdm(data_tuple)]
-            # for source, target in tqdm(data_tuple):
-            #     examples.append(dt.Example.fromlist([source, target], fields))
+def _process_job(data_tuple, fields):
+    return [dt.Example.fromlist(data_pair, fields) for data_pair in tqdm(data_tuple)]
+
+
+def getDataExamples_withTorchText(data_tuple, source_field, target_field, is_train=True, num_workers=1):
+    fields = [("Source", source_field), ("Target", target_field)]
+    examples = []
+    if (num_workers == -1) or (num_workers > int(cpu_count() * 0.8)):
+        num_workers = int(cpu_count() * 0.8)
+    if num_workers > 1:
+        p_pool = Pool(num_workers)
+        sub_len = int(len(data_tuple) / num_workers)   # 不能整除地部分丢弃，
+    if is_train:
+        if num_workers > 1:
+            p_list = []
+            examples = []
+            for i in range(num_workers):
+                p_list.append(p_pool.apply_async(func=_process_job, args=(data_tuple[i*sub_len: (i+1)*sub_len], fields)))    #不会出现索引溢出，因为计算sub_len时已经通过除法取整保证了这一点。
+            p_pool.close()
+            p_pool.join()
+            for i in range(num_workers -1, -1, -1):  # 倒序，为了能从队尾删除
+                examples += p_list[i].get()
+                del p_list[i]
         else:
-            for source, target in tqdm(data_tuple):
-                examples.append(dt.Example.fromlist([source, None], fields))
-        super().__init__(examples, fields)
+            examples = [dt.Example.fromlist(data_pair, fields) for data_pair in tqdm(data_tuple)]
+    else:
+        for source, target in tqdm(data_tuple):
+            examples.append(dt.Example.fromlist([source, None], fields))
+    return dt.Dataset(examples, fields)
+
+
+
+
+# class DataExamples_withTorchText(dt.Dataset):
+#     def __init__(self, data_tuple, source_field, target_field, is_train=True, workers=1):
+#         fields = [("Source", source_field), ("Target", target_field)]
+#         examples = []
+#         if workers > 1:
+#             if workers > cpu_count():
+#                 workers = cpu_count()
+#             p_pool = Pool(workers)
+#         if is_train:
+#             if workers > 1:
+#                 p_list = []
+#                 examples = []
+#                 for i in range(workers):
+#                     p_list.append(p_pool.apply_async(func=self._run_job, args=(data_tuple, fields, i, workers)))
+#                 p_pool.close()
+#                 p_pool.join()
+#                 for i in examples:
+#                     examples.extend(i.get())
+#             else:
+#                 examples = [dt.Example.fromlist(data_pair, fields) for data_pair in tqdm(data_tuple)]
+#             # for source, target in tqdm(data_tuple):
+#             #     examples.append(dt.Example.fromlist([source, target], fields))
+#         else:
+#             for source, target in tqdm(data_tuple):
+#                 examples.append(dt.Example.fromlist([source, None], fields))
+#         super().__init__(examples, fields)
+#
+#     def _run_job(self, data_tuple, fields, index, total):
+#         return [dt.Example.fromlist(data_pair, fields) for data_pair in tqdm(data_tuple[index::total])]
+
+# class DataExamples_withTorchText(dt.Dataset):
+#     def __init__(self, data_tuple, source_field, target_field, is_train=True):
+#         fields = [("Source", source_field), ("Target", target_field)]
+#         examples = []
+#         if is_train:
+#             examples = [dt.Example.fromlist(data_pair, fields) for data_pair in tqdm(data_tuple)]
+#             # for source, target in tqdm(data_tuple):
+#             #     examples.append(dt.Example.fromlist([source, target], fields))
+#         else:
+#             for source, target in tqdm(data_tuple):
+#                 examples.append(dt.Example.fromlist([source, None], fields))
+#         super().__init__(examples, fields)
 
 
 class TripletDataExamples_withTorchText(dt.Dataset):
@@ -58,13 +145,12 @@ class TripletDataExamples_withTorchText(dt.Dataset):
 
 def get_bert_tokenizer(arguments, language=None):
     # language: 'en', or 'zh'
-    project_root = arguments['general']['project_root']
-    running_task = arguments['general']['running_task']
+    bert_model_root = arguments['bert_model_root']
     if language == 'en':
-        bert_model_name = project_root + os.path.sep + arguments['tasks'][running_task]['bert_model']['bert_model_en']
+        bert_model_name = bert_model_root + os.path.sep + arguments['net_structure']['bert_model']['bert_model_en_file']
         tokenizer = BertTokenizer.from_pretrained(bert_model_name)
     elif language == 'zh':
-        bert_model_name = project_root + os.path.sep + arguments['tasks'][running_task]['bert_model']['bert_model_zh']
+        bert_model_name = bert_model_root + os.path.sep + arguments['net_structure']['bert_model']['bert_model_zh_file']
         tokenizer = BertTokenizer.from_pretrained(bert_model_name)
     else:
         tokenizer = None
@@ -73,13 +159,12 @@ def get_bert_tokenizer(arguments, language=None):
 
 def get_bert_model(arguments, language=None):
     # language: 'en', or 'zh'
-    project_root = arguments['general']['project_root']
-    running_task = arguments['general']['running_task']
+    bert_model_root = arguments['bert_model_root']
     if language == 'en':
-        bert_model_name = project_root + os.path.sep + arguments['tasks'][running_task]['bert_model']['bert_model_en']
+        bert_model_name = bert_model_root + os.path.sep + arguments['net_structure']['bert_model']['bert_model_en_file']
         bert_model = BertModel.from_pretrained(bert_model_name)
     elif language == 'zh':
-        bert_model_name = project_root + os.path.sep + arguments['tasks'][running_task]['bert_model']['bert_model_zh']
+        bert_model_name = bert_model_root + os.path.sep + arguments['net_structure']['bert_model']['bert_model_zh_file']
         bert_model = BertModel.from_pretrained(bert_model_name)
     else:
         bert_model = None
@@ -88,13 +173,12 @@ def get_bert_model(arguments, language=None):
 
 def get_bert_configer(arguments, language=None):
     # language: 'en', or 'zh'
-    project_root = arguments['general']['project_root']
-    running_task = arguments['general']['running_task']
+    bert_model_root = arguments['bert_model_root']
     if language == 'en':
-        bert_model_name = project_root + os.path.sep + arguments['tasks'][running_task]['bert_model']['bert_model_en']
+        bert_model_name = bert_model_root + os.path.sep + arguments['net_structure']['bert_model']['bert_model_en_file']
         configer = BertConfig.from_pretrained(bert_model_name)
     elif language == 'zh':
-        bert_model_name = project_root + os.path.sep + arguments['tasks'][running_task]['bert_model']['bert_model_zh']
+        bert_model_name = bert_model_root + os.path.sep + arguments['net_structure']['bert_model']['bert_model_zh_file']
         configer = BertConfig.from_pretrained(bert_model_name)
     else:
         configer = None

@@ -1,8 +1,0 @@
-general:
-#static:
-  #BATCH_FIRST: True
-  random_state: 42
-#dynamic: will be updated during running
-  device: cuda
-  project_root: /
-  running_task: 'translation'
