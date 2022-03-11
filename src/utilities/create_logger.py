@@ -4,10 +4,10 @@ import os
 import sys
 
 def create_logger(log_path, sys_log_level, file_log_level, console_log_level):
-    # log_path = arguments['log_root']
-    # sys_log_level = arguments['logging']['sys_log_level']
-    # file_log_level = arguments['logging']['file_log_level']
-    # console_log_level = arguments['logging']['console_log_level']
+    # log_path = config['log_root']
+    # sys_log_level = config['logging']['sys_log_level']
+    # file_log_level = config['logging']['file_log_level']
+    # console_log_level = config['logging']['console_log_level']
 
     if sys_log_level.lower() == 'debug':
         sys_log_level = logging.DEBUG

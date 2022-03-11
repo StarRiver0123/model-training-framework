@@ -1,11 +1,11 @@
 import os, sys
-from src.utilities.load_data import load_config
+from src.utilities.load_data import get_config
 
 sys.path.append(os.getcwd())
 
 
 if __name__ == '__main__':
-    config = load_config('config_deploy.yaml')
+    config = get_config('config_deploy.yaml')
     for app in config['running_apps']:
         if app['web_framework'] == 'flask':
             server_root = config['flask_server_root']

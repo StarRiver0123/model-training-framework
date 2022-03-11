@@ -7,27 +7,27 @@ from transformers import BertTokenizer, BertModel, BertConfig
 from collections import defaultdict
 from torch.utils.data import DataLoader
 
-def load_config(config_file):
+def get_config(config_file):
     args = {}
     with open(config_file, 'r', encoding='utf-8') as f:
         args = yaml.safe_load(f.read())
     return args
 
-def load_args_from_yamls(project_root, arg_file_root):
-    arguments_root = project_root + os.path.sep + arg_file_root
-    arguments_paths = []
-    arguments_paths.append(arguments_root)
-    arguments = {}
-    while len(arguments_paths):
-        f_p = arguments_paths.pop()
+def get_config_from_yamls(project_root, arg_file_root):
+    config_root = project_root + os.path.sep + arg_file_root
+    config_paths = []
+    config_paths.append(config_root)
+    config = {}
+    while len(config_paths):
+        f_p = config_paths.pop()
         if os.path.isfile(f_p):
             with open(f_p, 'r', encoding='utf-8') as f:
                 args = yaml.safe_load(f.read())
-            arguments.update(args)
+            config.update(args)
         if os.path.isdir(f_p):
             for sub_f_p in os.listdir(f_p):
-                arguments_paths.append(f_p + os.path.sep + sub_f_p)
-    return arguments
+                config_paths.append(f_p + os.path.sep + sub_f_p)
+    return config
 
 def get_txt_from_file(file, encoding='utf-8'):
     data_set = []
@@ -52,7 +52,7 @@ def _process_job(data_tuple, fields):
     return [dt.Example.fromlist(data_pair, fields) for data_pair in tqdm(data_tuple)]
 
 
-def getDataExamples_withTorchText(data_tuple, source_field, target_field, is_train=True, num_workers=1):
+def build_examples(data_tuple, source_field, target_field, is_train=True, num_workers=1):
     fields = [("Source", source_field), ("Target", target_field)]
     examples = []
     if (num_workers == -1) or (num_workers > int(cpu_count() * 0.8)):
@@ -125,7 +125,7 @@ def getDataExamples_withTorchText(data_tuple, source_field, target_field, is_tra
 #         super().__init__(examples, fields)
 
 
-class TripletDataExamples_withTorchText(dt.Dataset):
+class build_triplet_examples(dt.Dataset):
     def __init__(self, data_tuple, source_field, target_field, negative_field, is_train=True):
         fields = [("Source", source_field), ("Target", target_field), ("Negative", negative_field)]
         examples = []
@@ -143,49 +143,8 @@ class TripletDataExamples_withTorchText(dt.Dataset):
         super().__init__(examples, fields)
 
 
-def get_bert_tokenizer(arguments, language=None):
-    # language: 'en', or 'zh'
-    bert_model_root = arguments['bert_model_root']
-    if language == 'en':
-        bert_model_name = bert_model_root + os.path.sep + arguments['net_structure']['bert_model']['bert_model_en_file']
-        tokenizer = BertTokenizer.from_pretrained(bert_model_name)
-    elif language == 'zh':
-        bert_model_name = bert_model_root + os.path.sep + arguments['net_structure']['bert_model']['bert_model_zh_file']
-        tokenizer = BertTokenizer.from_pretrained(bert_model_name)
-    else:
-        tokenizer = None
-    return tokenizer
 
-
-def get_bert_model(arguments, language=None):
-    # language: 'en', or 'zh'
-    bert_model_root = arguments['bert_model_root']
-    if language == 'en':
-        bert_model_name = bert_model_root + os.path.sep + arguments['net_structure']['bert_model']['bert_model_en_file']
-        bert_model = BertModel.from_pretrained(bert_model_name)
-    elif language == 'zh':
-        bert_model_name = bert_model_root + os.path.sep + arguments['net_structure']['bert_model']['bert_model_zh_file']
-        bert_model = BertModel.from_pretrained(bert_model_name)
-    else:
-        bert_model = None
-    return bert_model
-
-
-def get_bert_configer(arguments, language=None):
-    # language: 'en', or 'zh'
-    bert_model_root = arguments['bert_model_root']
-    if language == 'en':
-        bert_model_name = bert_model_root + os.path.sep + arguments['net_structure']['bert_model']['bert_model_en_file']
-        configer = BertConfig.from_pretrained(bert_model_name)
-    elif language == 'zh':
-        bert_model_name = bert_model_root + os.path.sep + arguments['net_structure']['bert_model']['bert_model_zh_file']
-        configer = BertConfig.from_pretrained(bert_model_name)
-    else:
-        configer = None
-    return configer
-
-
-def init_field_vocab_special_tokens_from_model(field, tokenizer):
+def build_field_vocab_special_tokens_from_bert_tokenizer(field, tokenizer):
     field.build_vocab()
     field.vocab.stoi.clear()
     field.vocab.stoi.update(tokenizer.vocab)
@@ -201,7 +160,7 @@ def init_field_vocab_special_tokens_from_model(field, tokenizer):
     field.pad_token = tokenizer.pad_token
 
 
-def init_field_vocab_special_tokens(field, stoi, itos, sos_token=None, eos_token=None, pad_token=None, unk_token=None):
+def build_field_vocab_special_tokens(field, stoi, itos, sos_token=None, eos_token=None, pad_token=None, unk_token=None):
     field.build_vocab()
     field.vocab.stoi.clear()
     field.vocab.stoi.update(stoi)

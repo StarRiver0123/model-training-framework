@@ -1,0 +1,97 @@
+general:
+  random_state: 42
+  device:
+
+net_structure:
+  dataset:
+    dataset_class: 'mine'   # clue or mine
+    corpus_tagging_file: 'for_ner/tagging.txt'
+    train_set_file: 'for_ner/valid.txt'
+    valid_set_file: 'for_ner/valid.txt'
+    test_set_file: 'for_ner/test.txt'
+#    use_enhancement: !!bool True
+    gen_num_total_examples: 13418 #13418
+    ner_parameter_file: 'for_ner/ner_parameter.pkl'
+  model: 'bert_crf'    # bert_crf or lstm_crf
+  bert_model_file: 'albert-tiny-chinese'
+  tokenizer:
+  word_vector_file: 'sgns.wiki.bigram-char'
+  criterion: 'crf'
+  optimizer: 'adamw'
+  lr_scheduler: 'cosdecay'   # steplr or warmup or cosdecay
+  evaluator: 'f1_score'
+
+dataset:
+  general_symbol:
+    sos_token: '<sos>'
+    eos_token: '<eos>'
+    pad_token: '<pad>'
+    unk_token: '<unk>'
+
+model:
+  bert_crf:
+    use_bert: !!bool True
+    max_len: 64   # must be smaller than 512
+    split_overlap_size: 8
+  lstm_crf:
+    use_bert: !!bool False
+    d_model: 300
+    hidden_size: 128
+    num_layers: 3
+    p_drop: 0.1
+    max_len: 64   # must be smaller than 512
+    split_overlap_size: 8
+
+
+criteria:
+  lsce:
+    label_smoothing: 0.1
+
+optimizer:
+  adam:
+    lr: !!float 1e-3
+    beta1: 0.9
+    beta2: 0.98
+    eps: !!float 1e-9
+  adamw:
+    lr: !!float 3e-5
+    beta1: 0.9
+    beta2: 0.999
+    eps: !!float 1e-9
+
+lr_scheduler:
+  steplr:
+    step_size: 100
+    gamma: 0.999
+  warmup:
+    factor: 1
+    step_size: 1
+    lr_warmup_step: 40
+  cosdecay:
+    max_lr: !!float 3e-5      #翻译任务：1e-4，ner任务：3e-5 for bert, 1e-4 for lstm
+    min_lr: !!float 1e-8
+    step_size: 5          # 这个参数在函数内部被屏蔽了，因为存在一个隐藏的bug。详见函数注释。
+    warmup_size: 0.02
+
+evaluator:
+
+training:
+  resume_from_check_point: !!bool False
+  model_check_point_file: 'check_point_epoch_004_loss_6.33063_20211218220318.pt'
+  save_check_point: !!bool False
+  check_point_epoch_step: 1
+  epochs: 1
+  batch_size: 4
+  valid_size: 0.11    # proportion of the sum of train set and valid set
+  test_size: 0.1     # proportion of the sum of train set and valid set and test set
+  bert_full_fine_tuning: !!bool True
+  validating: !!bool True
+  loss_threshold: 10 #0.5
+  evaluation_threshold: -10 #0.7
+  batch_interval_for_log: 10
+  max_norm: 5
+
+logging:
+  sys_log_level: 'debug'    # must be: debug, info, warning, error, critical
+  file_log_level: 'debug'
+  console_log_level: 'info'

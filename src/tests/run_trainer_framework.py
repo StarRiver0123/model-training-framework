@@ -1,7 +1,7 @@
 from src.modules.trainer.trainer_framework import Trainer
 
-arguments = 'start'
-trainer = Trainer(arguments)
+config = 'start'
+trainer = Trainer(config)
 model = 1
 train_iter = 2
 valid_iter = 3

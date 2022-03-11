@@ -1,0 +1,23 @@
+net_structure:
+  dataset:
+    test_q_file: 'for_answer_grade/test_q.txt'
+    test_a_file: 'for_answer_grade/test_a.txt'
+  saved_model_file: 'model_epoch_000_loss_0.99865_cosine_similarity_-0.00790_20220311161855.pt'
+  bert_model_file: 'chinese-bert-wwm-ext'
+  tokenizer: 'tokenize_zh_byJieba'
+  evaluator: 'cosine_similarity'
+
+testing:
+  #batch_size: 1    # must set to 1
+  batch_interval_for_log: 1
+
+logging:
+  sys_log_level: 'debug'    # must be: debug, info, warning, error, critical
+  file_log_level: 'debug'
+  console_log_level: 'info'
+
+#以下是预留键，不要填写东西。
+model_state_dict:
+model_config:
+model_vocab:
+symbol_config:

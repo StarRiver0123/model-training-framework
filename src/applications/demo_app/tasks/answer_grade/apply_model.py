@@ -6,26 +6,33 @@ from src.modules.models.base_component import gen_pad_only_mask, gen_seq_only_ma
 from src.modules.tester.tester_framework import Tester
 import os, sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from test_model import manage_model_state
+from test_model import load_model_states_into_config
+from build_model import create_inference_model, create_evaluator
+tokenizer_package_path = r'src.modules.tokenizers.tokenizer'
 
-
-def apply_model(arguments):
-    used_model = arguments['net_structure']['model']
-    module_obj = sys.modules['src.utilities.load_data']
-    use_bert = arguments['net_structure']['use_bert']
-    # max_len = arguments['model'][used_model]['max_len']
-    # get the tester
-    tester = Tester(arguments)
-    # get the model
-    model, model_vocab, _, _, _ = tester.load_model(get_model_state_func=manage_model_state, get_model_state_outer_params={})
-    text_vocab_stoi = model_vocab['text_vocab_stoi']
-    text_vocab_itos = model_vocab['text_vocab_itos']
+def apply_model(config):
+    # step 1: load model and config states
+    load_model_states_into_config(config)
+    # step 2: create model
+    model = create_inference_model(config)
+    # step 2': create evaluator if required
+    evaluator = create_evaluator(config)
+    # step 3: load vocab
+    text_vocab_stoi = config['model_vocab']['vocab_stoi']
+    text_vocab_itos = config['model_vocab']['vocab_itos']
+    # step 4: create tokenizer
+    use_bert = config['model_config']['use_bert']
     if not use_bert:
-        tokenizer_name = arguments['net_structure']['tokenizer']
+        module_obj = sys.modules[tokenizer_package_path]
+        tokenizer_name = config['net_structure']['tokenizer']
         tokenizer = getattr(module_obj, tokenizer_name)
     else:
-        tokenizer = get_bert_tokenizer(arguments, language='zh').encode
+        bert_model_root = config['bert_model_root']
+        bert_model_file = bert_model_root + os.path.sep + config['net_structure']['bert_model']['bert_model_file']
+        tokenizer = BertTokenizer.from_pretrained(bert_model_file).encode
+    # step 5: start main process
     while 1:
+        # step 5-1: get the input
         input_q = input("请输入问题(输入字符'q'退出)：")
         if input_q == 'q':
             break
@@ -33,32 +40,38 @@ def apply_model(arguments):
         if input_a == 'q':
             break
         print('\n')
+        # step 5-2: get the token ids
         if not use_bert:
             input_q = [text_vocab_stoi[word] for word in tokenizer(input_q)]
             input_a = [text_vocab_stoi[word] for word in tokenizer(input_a)]
         else:
             input_q = tokenizer(input_q)
             input_a = tokenizer(input_a)
-        input_q = torch.tensor(input_q).unsqueeze(0)         # 模型的输入需要2维。
-        input_a = torch.tensor(input_a).unsqueeze(0)  # 模型的输入需要2维。
-        input_seq = (input_q, input_a)
-        # start to run
-        tester.apply(model=model, input_seq=input_seq,
-                      compute_predict_func=compute_predict,
-                      compute_predict_outer_params={'text_vocab_itos': text_vocab_itos})
+        # step 5-3: adjust the input shape
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        source = torch.tensor(input_q).unsqueeze(0).to(device)         # 模型的输入需要2维。
+        target = torch.tensor(input_a).unsqueeze(0).to(device)  # 模型的输入需要2维。
+        # step 5-4: start to inference
+        model.eval()
+        with torch.no_grad():
+            source_vector, target_vector = model(source, target)
+            similarity = evaluator(source_vector, target_vector)
+            print("Source string:  " + ' '.join(text_vocab_itos[index] for index in source[0]))
+            print("Target string:  " + ' '.join(text_vocab_itos[index] for index in target[0]))
+            print(f"相似度评分:  {similarity: 0.3f}")
+
 
 
 # this function needs to be defined from the view of concrete task
-def compute_predict(model, input_seq, device, log_string_list, text_vocab_itos):
-    # model, data_example, device, log_string_list are from inner tester framework
-    # output: predict: 1,L,D
-    source = input_seq[0].to(device)
-    target = input_seq[1].to(device)
-    source_vector, target_vector = model.model(source, target)
-    evaluation = model.evaluator(source_vector, target_vector)
-    # evaluation2 = model.evaluator(source.float(), target.float())
-    log_string_list.append("Source string:  " + ' '.join(text_vocab_itos[index] for index in source[0]))
-    log_string_list.append("Target string:  " + ' '.join(text_vocab_itos[index] for index in target[0]))
-    log_string_list.append(f"相似度评分:  {evaluation: 0.3f}")
-    return evaluation
+# def compute_predict(model, evaluator, input_seq, device, text_vocab_itos):
+#     # model, data_example, device, log_string_list are from inner tester framework
+#     # output: predict: 1,L,D
+#     source = input_seq[0].to(device)
+#     target = input_seq[1].to(device)
+#     source_vector, target_vector = model.model(source, target)
+#     evaluation = evaluator(source_vector, target_vector)
+#     print("Source string:  " + ' '.join(text_vocab_itos[index] for index in source[0]))
+#     print("Target string:  " + ' '.join(text_vocab_itos[index] for index in target[0]))
+#     print(f"相似度评分:  {evaluation: 0.3f}")
+
 

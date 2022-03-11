@@ -6,30 +6,26 @@ from src.modules.models.base_component import gen_pad_only_mask, gen_seq_only_ma
 from src.modules.tester.tester_framework import Tester
 import os, sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from build_dataset import load_test_set, get_data_iterator, init_field_vocab_special_tokens
+from build_dataset import *
+from build_model import TestingModel
 
 
-def test_model(arguments):
-    used_model = arguments['net_structure']['model']
-    max_len = arguments['model'][used_model]['max_len']
-    # get the dataset and data iterator
-    test_set = load_test_set(arguments)
-    test_iter, source_field, target_field = get_data_iterator(arguments, test_set=test_set)
-    # get the tester
-    tester = Tester(arguments)
-    # get the model
-    model, model_vocab, _, _, _ = tester.load_model(get_model_state_func=manage_model_state, get_model_state_outer_params={})
-    # re-init the field vocab
-    tgt_vocab_stoi = model_vocab['tgt_vocab_stoi']
-    tgt_vocab_itos = model_vocab['tgt_vocab_itos']
-    init_field_vocab_special_tokens(target_field, tgt_vocab_stoi, tgt_vocab_itos)
-    special_token_ids = [target_field.vocab.stoi[target_field.init_token], target_field.vocab.stoi[target_field.eos_token], target_field.vocab.stoi[target_field.pad_token], target_field.vocab.stoi[target_field.unk_token]]
-    labels = [tag for tag in list(target_field.vocab.stoi.values()) if tag not in special_token_ids]
-    # start test
+def test_model(config):
+    # step 1: load model and config states
+    load_model_states_into_config(config)
+    # step 2: get the tester
+    tester = Tester(config)
+    # step 3: get the data iterator and field
+    test_iter, src_field, tgt_field = build_test_dataset_pipeline(config)
+    # step 4: get the model and update config
+    model, _, _ = load_model_and_vocab(config, src_field, tgt_field)
+    # step 5: start test
+    special_token_ids = [config['symbol_config']['tgt_pad_token']]
+    labels = [tag for tag in list(tgt_field.vocab.stoi.values()) if tag not in special_token_ids]
     tester.test(model=model, test_iter=test_iter,
                   compute_predict_evaluation_func=compute_predict_evaluation,
                   compute_predict_evaluation_outer_params={
-                      'source_field': source_field, 'target_field': target_field, 'labels': labels})
+                      'source_field': src_field, 'target_field': tgt_field, 'labels': labels})
 
 
 # this function needs to be defined from the view of concrete task
@@ -64,41 +60,25 @@ def compute_predict_evaluation(model, data_example, max_len, device, do_log, log
     return predict, target, evaluation
 
 
-def manage_model_state(arguments, loaded_weights):
-    # 这里需要动态加载模型创建的类
-    running_task = arguments['running_task']
-    model_creator_module = arguments['net_structure']['model_creator_module']
-    model_creator_class = arguments['net_structure']['model_creator_class']
-    # src_code_root = arguments['file']['src']['tasks']
-    # module_path = src_code_root.replace('/', '.') + '.' + running_task + '.' + model_creator_module
-    _model_creator_module = importlib.import_module(model_creator_module)
-    creator_class = getattr(_model_creator_module, model_creator_class)
+def load_model_and_vocab(config, src_field=None, tgt_field=None):
+    model_state_dict = config['model_state_dict']
+    model = TestingModel(config)
+    model.model.load_state_dict(model_state_dict)
+    use_bert = config['model_config']['use_bert']
+    if not use_bert:
+        src_vocab_stoi = config['model_vocab']['src_vocab_stoi']
+        src_vocab_itos = config['model_vocab']['src_vocab_itos']
+        build_field_vocab_special_tokens(src_field, src_vocab_stoi, src_vocab_itos)
+    tgt_vocab_stoi = config['model_vocab']['tgt_vocab_stoi']
+    tgt_vocab_itos = config['model_vocab']['tgt_vocab_itos']
+    build_field_vocab_special_tokens(tgt_field, tgt_vocab_stoi, tgt_vocab_itos)
+    return model, tgt_vocab_stoi, tgt_vocab_itos
 
-    model_state_dict = loaded_weights['model_state_dict']
-    model_creation_args = loaded_weights['model_creation_args']
-    model_vocab = loaded_weights['model_vocab']
-    extra_states = loaded_weights['extra_states']
-    training_states = loaded_weights['training_states']
-    used_model = arguments['net_structure']['model']
-    # arguments['model'][used_model].update({'tgt_vocab_stoi': model_vocab['tgt_vocab_stoi'],
-    #                                        'tgt_vocab_itos': model_vocab['tgt_vocab_itos']
-    #                                        })
-    arguments['model'][used_model].update({'num_tags': extra_states['num_tags']})
-    model = creator_class(arguments, **model_creation_args)
-    if 'model' in model_state_dict.keys():
-        model.model.load_state_dict(model_state_dict['model'])
-        model_state_dict['model'] = None
-    if 'criterion' in model_state_dict.keys():
-        model.criterion.load_state_dict(model_state_dict['criterion'])
-        model_state_dict['criterion'] = None
-    if 'optimizer' in model_state_dict.keys():
-        model.optimizer.load_state_dict(model_state_dict['optimizer'])
-        model_state_dict['optimizer'] = None
-    if 'lr_scheduler' in model_state_dict.keys():
-        model.lr_scheduler.load_state_dict(model_state_dict['lr_scheduler'])
-        model_state_dict['lr_scheduler'] = None
-    if 'evaluator' in model_state_dict.keys():
-        model.evaluator.load_state_dict(model_state_dict['evaluator'])
-        model_state_dict['evaluator'] = None
 
-    return (model, model_vocab, model_creation_args, extra_states, training_states)
+def load_model_states_into_config(config):
+    model_save_root = config['check_point_root']
+    saved_model_file = config['net_structure']['saved_model_file']
+    model_file_path = model_save_root + os.path.sep + saved_model_file
+    model_states = torch.load(model_file_path)
+    config.update(model_states)
+

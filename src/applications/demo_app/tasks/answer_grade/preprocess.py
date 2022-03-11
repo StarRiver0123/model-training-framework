@@ -4,24 +4,24 @@ from tqdm import tqdm
 # spacy_tokenizer = spacy.load("en_core_web_sm")
 from sklearn.model_selection import train_test_split
 from src.utilities.load_data import *
-from src.utilities.load_arguments import load_arguments
+from src.utilities.load_config import load_config
 
 
-def preprocess(arguments):
-    used_model = arguments['net_structure']['model']
-    dataset_root = arguments['dataset_root']
-    craw_corpus_qa_file = arguments['net_structure']['dataset']['corpus_qa_file']
-    file_train_q_file = arguments['net_structure']['dataset']['train_q_file']
-    file_train_a_file = arguments['net_structure']['dataset']['train_a_file']
-    file_test_q_file = arguments['net_structure']['dataset']['test_q_file']
-    file_test_a_file = arguments['net_structure']['dataset']['test_a_file']
-    test_size = arguments['training']['test_size']
-    gen_num_total_examples = arguments['net_structure']['dataset']['gen_num_total_examples']
-    # max_len = arguments['model'][used_model]['max_len'] - 4   # condidering sos, eos, pad, unk
-    random_state = arguments['general']['random_state']
+def preprocess(config):
+    used_model = config['net_structure']['model']
+    dataset_root = config['dataset_root']
+    craw_corpus_qa_file = config['net_structure']['dataset']['corpus_qa_file']
+    file_train_q_file = config['net_structure']['dataset']['train_q_file']
+    file_train_a_file = config['net_structure']['dataset']['train_a_file']
+    file_test_q_file = config['net_structure']['dataset']['test_q_file']
+    file_test_a_file = config['net_structure']['dataset']['test_a_file']
+    test_size = config['training']['test_size']
+    gen_num_total_examples = config['net_structure']['dataset']['gen_num_total_examples']
+    # max_len = config['model'][used_model]['max_len'] - 4   # condidering sos, eos, pad, unk
+    random_state = config['general']['random_state']
     # module_obj = sys.modules['src.utilities.load_data']
-    # use_bert = arguments['tasks'][running_task]['use_bert']
-    # device = arguments['general']['device']
+    # use_bert = config['tasks'][running_task]['use_bert']
+    # device = config['general']['device']
 
     craw_data = pandas.read_csv(dataset_root + os.path.sep + craw_corpus_qa_file, encoding='utf-8')
     craw_data = craw_data[craw_data['关系'] == 'question2answer']
@@ -55,5 +55,5 @@ def preprocess(arguments):
     print("preprocess over.")
 
 if __name__ == '__main__':
-    arguments = load_arguments('file_config.yaml')
-    preprocess(arguments)
+    config = load_config('file_config.yaml')
+    preprocess(config)

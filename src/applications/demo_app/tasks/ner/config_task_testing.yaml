@@ -1,0 +1,24 @@
+net_structure:
+  dataset:
+    test_set_file: 'for_ner/test.txt'
+#    use_enhancement: !!bool True
+    gen_num_total_examples: 1000 #13418
+  saved_model_file: 'model_epoch_000_loss_1.49993_f1_score_0.62625_20220311155621.pt'
+  bert_model_file: 'albert-tiny-chinese'
+  tokenizer:
+  evaluator: 'f1_score'
+
+testing:
+  #batch_size: 1    # must set to 1
+  batch_interval_for_log: 1
+
+logging:
+  sys_log_level: 'debug'    # must be: debug, info, warning, error, critical
+  file_log_level: 'debug'
+  console_log_level: 'info'
+
+#以下是预留键，不要填写东西。
+model_state_dict:
+model_config:
+model_vocab:
+symbol_config:

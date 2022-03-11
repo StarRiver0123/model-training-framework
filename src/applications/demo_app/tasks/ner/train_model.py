@@ -4,36 +4,37 @@ from src.utilities.load_data import *
 from src.modules.trainer.trainer_framework import Trainer
 import os, sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from build_dataset import load_train_valid_split_set, get_data_iterator
-from build_model import NERModel
-# from src.applications.demo_app.tasks.ner.build_dataset import load_train_valid_split_set, get_data_iterator
+from build_dataset import *
+from build_model import TrainingModel
+# from src.applications.demo_app.tasks.ner.build_dataset import *
 # from src.applications.demo_app.tasks.ner.build_model import NERModel
 
 
-def train_model(arguments):
-    used_model = arguments['net_structure']['model']
-    # get the dataset and data iterator
-    train_set, valid_set = load_train_valid_split_set(arguments)
-    train_iter, valid_iter, source_field, target_field = get_data_iterator(arguments, train_set=train_set, valid_set=valid_set)
-    # get the model and arguments
-    if used_model == 'lstm_crf':
-        word_vector = source_field.vocab.vectors
+def train_model(config):
+    # step 1: build dataset and vocab
+    train_iter, valid_iter, src_field, tgt_field = build_train_dataset_and_vocab_pipeline(config)
+    # step 2: build model
+    used_model = config['net_structure']['model']
+    use_bert = config['model'][used_model]['use_bert']
+    if not use_bert:
+        word_vectors = src_field.vocab.vectors
     else:
-        word_vector = None
-    model = NERModel(arguments, word_vector)
-    # get the trainer
-    trainer = Trainer(arguments)
-    # start train
-    special_token_ids = [target_field.vocab.stoi[target_field.init_token], target_field.vocab.stoi[target_field.eos_token], target_field.vocab.stoi[target_field.pad_token], target_field.vocab.stoi[target_field.unk_token]]
-    labels = [tag for tag in list(target_field.vocab.stoi.values()) if tag not in special_token_ids]
+        word_vectors = None
+    model = TrainingModel(config, word_vectors)
+    # step 3: get the trainer
+    trainer = Trainer(config)
+    # step 4: start train
+    # special_token_ids = [config['symbol_config']['tgt_sos_token'], config['symbol_config']['tgt_eos_token'], config['symbol_config']['tgt_pad_token'], config['symbol_config']['tgt_unk_token']]
+    special_token_ids = [config['symbol_config']['tgt_pad_token']]
+    labels = [tag for tag in list(tgt_field.vocab.stoi.values()) if tag not in special_token_ids]
     trainer.train(model=model, train_iter=train_iter,
                   compute_predict_loss_func=compute_predict_loss,
                   compute_predict_loss_outer_params={
-                      'source_field': source_field, 'target_field': target_field},
+                      'source_field': src_field, 'target_field': tgt_field},
                   valid_iter=valid_iter, compute_predict_evaluation_func=compute_predict_evaluation,
                   compute_predict_evaluation_outer_params={
-                      'source_field': source_field, 'target_field': target_field, 'labels': labels}, get_model_state_func=get_model_state_func,
-                  get_model_state_outer_params={'tgt_vocab': target_field.vocab})
+                      'source_field': src_field, 'target_field': tgt_field, 'labels': labels}, save_model_state_func=save_model_state_func,
+                  save_model_state_outer_params={})
 
 
 # this function needs to be defined from the view of concrete task
@@ -41,10 +42,10 @@ def compute_predict_loss(model, data_example, max_len, device, do_log, log_strin
     # model, data_example, device, do_log, log_string_list are from inner trainer framework
     # output: predict: N,L,D,  target: N,L
     pad_idx = target_field.vocab.stoi[target_field.pad_token]
-    unk_idx = target_field.vocab.stoi[target_field.unk_token]
-    sos_idx = target_field.vocab.stoi[target_field.init_token]
-    eos_idx = target_field.vocab.stoi[target_field.eos_token]
-    O_idx = target_field.vocab.stoi['O']
+    # unk_idx = target_field.vocab.stoi[target_field.unk_token]
+    # sos_idx = target_field.vocab.stoi[target_field.init_token]
+    # eos_idx = target_field.vocab.stoi[target_field.eos_token]
+    # O_idx = target_field.vocab.stoi['O']
     if data_example.Source.size(1) > max_len:
         source = data_example.Source[:, :max_len].to(device)
     else:
@@ -96,10 +97,10 @@ def compute_predict_evaluation(model, data_example, max_len, device, do_log, log
     # model, data_example, device, do_log, log_string_list are from inner trainer framework
     # output: predict: N,L,D,  target: N,L
     pad_idx = target_field.vocab.stoi[target_field.pad_token]
-    unk_idx = target_field.vocab.stoi[target_field.unk_token]
-    sos_idx = target_field.vocab.stoi[target_field.init_token]
-    eos_idx = target_field.vocab.stoi[target_field.eos_token]
-    O_idx = target_field.vocab.stoi['O']
+    # unk_idx = target_field.vocab.stoi[target_field.unk_token]
+    # sos_idx = target_field.vocab.stoi[target_field.init_token]
+    # eos_idx = target_field.vocab.stoi[target_field.eos_token]
+    # O_idx = target_field.vocab.stoi['O']
     if data_example.Source.size(1) > max_len:
         source = data_example.Source[:, :max_len].to(device)
     else:
@@ -134,28 +135,11 @@ def compute_predict_evaluation(model, data_example, max_len, device, do_log, log
 
 
 
-def get_model_state_func(model, arguments, tgt_vocab):
+def save_model_state_func(model, config):
     # model is from inner trainer framework,
-    used_model = arguments['net_structure']['model']
-    save_model = arguments['training']['model_save']['save_model']
-    save_criterion = arguments['training']['model_save']['save_criterion']
-    save_optimizer = arguments['training']['model_save']['save_optimizer']
-    save_lr_scheduler = arguments['training']['model_save']['save_lr_scheduler']
-    save_evaluator = arguments['training']['model_save']['save_evaluator']
-    model_state_dict = {}
-    if save_model:
-        model_state_dict.update({'model': model.model.state_dict()})
-    if save_criterion:
-        model_state_dict.update({'criterion': model.criterion.state_dict()})
-    if save_optimizer:
-        model_state_dict.update({'optimizer': model.optimizer.state_dict()})
-    if save_lr_scheduler:
-        model_state_dict.update({'lr_scheduler': model.lr_scheduler.state_dict()})
-    if save_evaluator:
-        model_state_dict.update({'evaluator': model.evaluator.state_dict()})
-    model_creation_args = {}
-    model_vocab = {'tgt_vocab_stoi': tgt_vocab.stoi,
-                    'tgt_vocab_itos': tgt_vocab.itos
-                    }
-    extra_states = {'num_tags': arguments['model'][used_model]['num_tags']}
-    return {'model_state_dict': model_state_dict, 'model_creation_args': model_creation_args, 'model_vocab': model_vocab, 'extra_states': extra_states}
+    model_state_dict = model.model.state_dict()
+    model_vocab = config['model_vocab']
+    model_config = config['model_config']
+    symbol_config = config['symbol_config']
+    return {'model_state_dict': model_state_dict, 'model_vocab': model_vocab, 'model_config': model_config, 'symbol_config': symbol_config}
+

@@ -6,43 +6,26 @@ from src.modules.models.base_component import gen_pad_only_mask, gen_seq_only_ma
 from src.modules.tester.tester_framework import Tester
 import os, sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from build_dataset import load_test_set, get_data_iterator, init_field_vocab_special_tokens
+from build_dataset import *
+from build_model import TestingModel
 
 
-def test_model(arguments):
-    used_model = arguments['net_structure']['model']
-    max_len = arguments['model'][used_model]['max_len']
-    use_bert = arguments['net_structure']['use_bert']
-    # get the dataset and data iterator
-    test_set = load_test_set(arguments)
-    test_iter, source_field, target_field = get_data_iterator(arguments, test_set=test_set)
-    # get the tester
-    tester = Tester(arguments)
-    # get the model
-    model, model_vocab, _, _, _ = tester.load_model(get_model_state_func=manage_model_state, get_model_state_outer_params={})
-    # re-init the field vocab
-    src_vocab_stoi = model_vocab['src_vocab_stoi']
-    src_vocab_itos = model_vocab['src_vocab_itos']
-    tgt_vocab_stoi = model_vocab['tgt_vocab_stoi']
-    tgt_vocab_itos = model_vocab['tgt_vocab_itos']
-
-    sos_token = arguments['dataset']['symbol']['sos_token']
-    eos_token = arguments['dataset']['symbol']['eos_token']
-    unk_token = arguments['dataset']['symbol']['unk_token']
-    pad_token = arguments['dataset']['symbol']['pad_token']
-    pad_idx = arguments['dataset']['symbol']['pad_idx']
-    if use_bert not in ['static', 'dynamic']:
-        init_field_vocab_special_tokens(source_field, src_vocab_stoi, src_vocab_itos)
-        init_field_vocab_special_tokens(target_field, tgt_vocab_stoi, tgt_vocab_itos)
-    else:
-        init_field_vocab_special_tokens(source_field, src_vocab_stoi, src_vocab_itos, sos_token, eos_token, pad_token, unk_token)
-        init_field_vocab_special_tokens(target_field, tgt_vocab_stoi, tgt_vocab_itos, sos_token, eos_token, pad_token, unk_token)
-    # start test
+def test_model(config):
+    # step 1: load model and config states
+    load_model_states_into_config(config)
+    # step 2: get the tester
+    tester = Tester(config)
+    # step 3: get the data iterator and field
+    test_iter, src_field, tgt_field = build_test_dataset_pipeline(config)
+    # step 4: get the model and update config
+    model, _, _ = load_model_and_vocab(config, src_field, tgt_field)
+    # step 5: start test
+    pad_idx = config['symbol_config']['pad_idx']
     tester.test(model=model, test_iter=test_iter,
                   compute_predict_evaluation_func=compute_predict_evaluation,
                   compute_predict_evaluation_outer_params={
-                      'source_field': source_field, 'target_field': target_field, 'pad_idx': pad_idx})
-    return "over"
+                      'source_field': src_field, 'target_field': tgt_field, 'pad_idx': pad_idx})
+
 
 # this function needs to be defined from the view of concrete task
 def compute_predict_evaluation(model, data_example, max_len, device, do_log, log_string_list, source_field, target_field, pad_idx):
@@ -59,7 +42,7 @@ def compute_predict_evaluation(model, data_example, max_len, device, do_log, log
     target_real = target[:, 1:-1]     # remove sos_token and end_sos_token, there should be no pad_token
     sos_idx = target[0, 0].item()
     eos_idx = target[0, -1].item()
-    predict = greedy_decode(model, source, device, max_len, sos_idx, eos_idx, pad_idx)
+    predict = greedy_decode(model.model, source, device, max_len, sos_idx, eos_idx, pad_idx)
     evaluation = model.evaluator(predict, target_real)
     if do_log:
         log_string_list.append(
@@ -75,13 +58,13 @@ def compute_predict_evaluation(model, data_example, max_len, device, do_log, log
 
 def greedy_decode(model, source, device, max_len, sos_idx, eos_idx, pad_idx=None):
     src_key_padding_mask = memory_key_padding_mask = gen_pad_only_mask(source, pad_idx)   #N,L
-    enc_out = model.model.encoder(source, src_key_padding_mask=src_key_padding_mask)
+    enc_out = model.encoder(source, src_key_padding_mask=src_key_padding_mask)
     target_input = torch.ones(1, 1).fill_(sos_idx).type(torch.long).to(device)
     for i in range(max_len - 1):
         tgt_key_padding_mask = gen_pad_only_mask(target_input, pad_idx)  # N,L
         tgt_mask = gen_seq_only_mask(target_input, target_input)  # L,L
-        dec_out = model.model.decoder(target_input, enc_out, tgt_mask=tgt_mask, tgt_key_padding_mask=tgt_key_padding_mask, memory_key_padding_mask=memory_key_padding_mask)
-        last_logit = model.model.predictor(dec_out[:, -1:])
+        dec_out = model.decoder(target_input, enc_out, tgt_mask=tgt_mask, tgt_key_padding_mask=tgt_key_padding_mask, memory_key_padding_mask=memory_key_padding_mask)
+        last_logit = model.predictor(dec_out[:, -1:])
         last_word = F.softmax(last_logit, dim=-1).argmax(dim=-1)     # last_word size: (1,1)
         if last_word.item() == eos_idx:
             break
@@ -90,67 +73,22 @@ def greedy_decode(model, source, device, max_len, sos_idx, eos_idx, pad_idx=None
     return predict
 
 
-def manage_model_state(arguments, loaded_weights):
-    # 这里需要动态加载模型创建的类
-    model_creator_module = arguments['net_structure']['model_creator_module']
-    model_creator_class = arguments['net_structure']['model_creator_class']
-    src_code_root = arguments['file']['src']['tasks']
-    trans_direct = arguments['net_structure']['trans_direct']
-    # module_path = src_code_root.replace('/', '.') + '.' + running_task + '.' + model_creator_module
-    _model_creator_module = importlib.import_module(model_creator_module)
-    creator_class = getattr(_model_creator_module, model_creator_class)
+def load_model_and_vocab(config, src_field=None, tgt_field=None):
+    model_state_dict = config['model_state_dict']
+    model = TestingModel(config)
+    model.model.load_state_dict(model_state_dict)
+    src_vocab_stoi = config['model_vocab']['src_vocab_stoi']
+    src_vocab_itos = config['model_vocab']['src_vocab_itos']
+    tgt_vocab_stoi = config['model_vocab']['tgt_vocab_stoi']
+    tgt_vocab_itos = config['model_vocab']['tgt_vocab_itos']
+    build_field_vocab_special_tokens(src_field, src_vocab_stoi, src_vocab_itos)
+    build_field_vocab_special_tokens(tgt_field, tgt_vocab_stoi, tgt_vocab_itos)
+    return model, tgt_vocab_stoi, tgt_vocab_itos
 
-    model_state_dict = loaded_weights['model_state_dict']
-    model_creation_args = loaded_weights['model_creation_args']
-    model_vocab = loaded_weights['model_vocab']
-    extra_states = loaded_weights['extra_states']
-    training_states = loaded_weights['training_states']
-    used_model = arguments['net_structure']['model']
-    use_bert = arguments['net_structure']['use_bert']
-    # arguments['model'][used_model].update({ 'src_vocab_stoi': model_vocab['src_vocab_stoi'],
-    #                                         'src_vocab_itos': model_vocab['src_vocab_itos'],
-    #                                         'tgt_vocab_stoi': model_vocab['tgt_vocab_stoi'],
-    #                                         'tgt_vocab_itos': model_vocab['tgt_vocab_itos']
-    #                                         })
-    arguments['model'][used_model].update({'d_model': extra_states['d_model'],
-                                            'nhead': extra_states['nhead'],
-                                            'src_vocab_len': extra_states['src_vocab_len'],
-                                            'tgt_vocab_len': extra_states['tgt_vocab_len']
-                                            })
 
-    arguments['dataset']['symbol'].update({'sos_token': extra_states['sos_token'],
-                                           'eos_token': extra_states['eos_token'],
-                                           'unk_token': extra_states['unk_token'],
-                                           'pad_token': extra_states['pad_token'],
-                                           'sos_idx': extra_states['sos_idx'],
-                                           'eos_idx': extra_states['eos_idx'],
-                                           'unk_idx': extra_states['unk_idx'],
-                                           'pad_idx': extra_states['pad_idx']
-                                           })
-    if use_bert == 'dynamic':
-        if trans_direct == 'en2zh':
-            src_bert_model = get_bert_model(arguments, language='en')
-            tgt_bert_model = get_bert_model(arguments, language='zh')
-        elif trans_direct == 'zh2en':
-            src_bert_model = get_bert_model(arguments, language='zh')
-            tgt_bert_model = get_bert_model(arguments, language='en')
-        #如果是用动态bert的话，需要把bert模型参数传入，创建model的时候创建bert对象，否则后面装载参数会出错。
-        model_creation_args.update({'src_bert_model': src_bert_model, 'tgt_bert_model': tgt_bert_model})
-    model = creator_class(arguments, **model_creation_args)
-    if 'model' in model_state_dict.keys():
-        model.model.load_state_dict(model_state_dict['model'])
-        model_state_dict['model'] = None
-    if 'criterion' in model_state_dict.keys():
-        model.criterion.load_state_dict(model_state_dict['criterion'])
-        model_state_dict['criterion'] = None
-    if 'optimizer' in model_state_dict.keys():
-        model.optimizer.load_state_dict(model_state_dict['optimizer'])
-        model_state_dict['optimizer'] = None
-    if 'lr_scheduler' in model_state_dict.keys():
-        model.lr_scheduler.load_state_dict(model_state_dict['lr_scheduler'])
-        model_state_dict['lr_scheduler'] = None
-    if 'evaluator' in model_state_dict.keys():
-        model.evaluator.load_state_dict(model_state_dict['evaluator'])
-        model_state_dict['evaluator'] = None
-
-    return (model, model_vocab, model_creation_args, extra_states, training_states)
+def load_model_states_into_config(config):
+    model_save_root = config['check_point_root']
+    saved_model_file = config['net_structure']['saved_model_file']
+    model_file_path = model_save_root + os.path.sep + saved_model_file
+    model_states = torch.load(model_file_path)
+    config.update(model_states)

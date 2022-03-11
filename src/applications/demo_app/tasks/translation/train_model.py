@@ -5,41 +5,29 @@ from src.modules.models.base_component import gen_pad_only_mask, gen_seq_only_ma
 from src.modules.trainer.trainer_framework import Trainer
 import os, sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from build_dataset import load_train_valid_split_set, get_data_iterator
-from build_model import TranslatorModel
+from build_dataset import *
+from build_model import TrainingModel
 
 
-def train_model(arguments):
-    # get the dataset and data iterator
+def train_model(config):
+    # step 1: build dataset and vocab
     # 注意这里需要优化，数据量很大时，train_iter消耗了太多地内存资源。需要加上无用资源释放代码!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    train_set, valid_set = load_train_valid_split_set(arguments)
-    train_iter, valid_iter, source_field, target_field = get_data_iterator(arguments, train_set=train_set, valid_set=valid_set)
-    # get the model and arguments
-    use_bert = arguments['net_structure']['use_bert']
-    trans_direct = arguments['net_structure']['trans_direct']
-    pad_idx = arguments['dataset']['symbol']['pad_idx']
-    if (use_bert != 'static') and (use_bert != 'dynamic'):
-        model = TranslatorModel(arguments, src_vector=source_field.vocab.vectors, tgt_vector=target_field.vocab.vectors)
-    else:
-        if trans_direct == 'en2zh':
-            src_bert_model = get_bert_model(arguments, language='en')
-            tgt_bert_model = get_bert_model(arguments, language='zh')
-        elif trans_direct == 'zh2en':
-            src_bert_model = get_bert_model(arguments, language='zh')
-            tgt_bert_model = get_bert_model(arguments, language='en')
-        model = TranslatorModel(arguments, src_bert_model=src_bert_model, tgt_bert_model=tgt_bert_model)
-    # get the trainer
-    trainer = Trainer(arguments)
-    # start train
+    train_iter, valid_iter, src_field, tgt_field = build_train_dataset_and_vocab_pipeline(config)
+    # step 2: build model
+    model = TrainingModel(config, src_field.vocab.vectors, tgt_field.vocab.vectors)
+    # step 3: get the trainer
+    trainer = Trainer(config)
+    # step 4: start train
+    pad_idx = config['symbol_config']['pad_idx']
     trainer.train(model=model, train_iter=train_iter,
                   compute_predict_loss_func=compute_predict_loss,
                   compute_predict_loss_outer_params={
-                      'source_field': source_field, 'target_field': target_field, 'pad_idx': pad_idx},
+                      'source_field': src_field, 'target_field': tgt_field, 'pad_idx': pad_idx},
                   valid_iter=valid_iter, compute_predict_evaluation_func=compute_predict_evaluation,
                   compute_predict_evaluation_outer_params={
-                      'source_field': source_field, 'target_field': target_field, 'pad_idx': pad_idx}, get_model_state_func=get_model_state_func,
-                  get_model_state_outer_params={'src_vocab': source_field.vocab, 'tgt_vocab': target_field.vocab})
-    return "over"
+                      'source_field': src_field, 'target_field': tgt_field, 'pad_idx': pad_idx}, save_model_state_func=save_model_state_func,
+                  save_model_state_outer_params={})
+
 
 
 # this function needs to be defined from the view of concrete task
@@ -124,47 +112,11 @@ def compute_predict_evaluation(model, data_example, max_len, device, do_log, log
     return logit, target_real, evaluation
 
 
-def get_model_state_func(model, arguments, src_vocab, tgt_vocab):
+def save_model_state_func(model, config):
     # model is from inner trainer framework,
-    used_model = arguments['net_structure']['model']
-    use_bert = arguments['net_structure']['use_bert']
-    save_model = arguments['training']['model_save']['save_model']
-    save_criterion = arguments['training']['model_save']['save_criterion']
-    save_optimizer = arguments['training']['model_save']['save_optimizer']
-    save_lr_scheduler = arguments['training']['model_save']['save_lr_scheduler']
-    save_evaluator = arguments['training']['model_save']['save_evaluator']
-    model_state_dict = {}
-    if save_model:
-        model_state_dict.update({'model': model.model.state_dict()})
-    if save_criterion:
-        model_state_dict.update({'criterion': model.criterion.state_dict()})
-    if save_optimizer:
-        model_state_dict.update({'optimizer': model.optimizer.state_dict()})
-    if save_lr_scheduler:
-        model_state_dict.update({'lr_scheduler': model.lr_scheduler.state_dict()})
-    if save_evaluator:
-        model_state_dict.update({'evaluator': model.evaluator.state_dict()})
+    model_state_dict = model.model.state_dict()
+    model_vocab = config['model_vocab']
+    model_config = config['model_config']
+    symbol_config = config['symbol_config']
+    return {'model_state_dict': model_state_dict, 'model_vocab': model_vocab, 'model_config': model_config, 'symbol_config': symbol_config}
 
-    model_creation_args = {}
-    model_vocab = {'src_vocab_stoi': src_vocab.stoi,
-                    'src_vocab_itos': src_vocab.itos,
-                    'tgt_vocab_stoi': tgt_vocab.stoi,
-                    'tgt_vocab_itos': tgt_vocab.itos
-                    }
-    extra_states = {'d_model': arguments['model'][used_model]['d_model'],
-                    'nhead': arguments['model'][used_model]['nhead'],
-                    'src_vocab_len': arguments['model'][used_model]['src_vocab_len'],
-                    'tgt_vocab_len': arguments['model'][used_model]['tgt_vocab_len']
-                    }
-
-    extra_states.update({'sos_token': arguments['dataset']['symbol']['sos_token'],
-                         'eos_token': arguments['dataset']['symbol']['eos_token'],
-                         'unk_token': arguments['dataset']['symbol']['unk_token'],
-                         'pad_token': arguments['dataset']['symbol']['pad_token'],
-                         'sos_idx': arguments['dataset']['symbol']['sos_idx'],
-                         'eos_idx': arguments['dataset']['symbol']['eos_idx'],
-                         'unk_idx': arguments['dataset']['symbol']['unk_idx'],
-                         'pad_idx': arguments['dataset']['symbol']['pad_idx'],
-                         })
-
-    return {'model_state_dict': model_state_dict, 'model_creation_args': model_creation_args, 'model_vocab': model_vocab, 'extra_states': extra_states}

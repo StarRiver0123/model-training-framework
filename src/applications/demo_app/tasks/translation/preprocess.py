@@ -4,27 +4,26 @@ from tqdm import tqdm
 # spacy_tokenizer = spacy.load("en_core_web_sm")
 from sklearn.model_selection import train_test_split
 from src.utilities.load_data import *
-from src.utilities.load_arguments import load_arguments
+from src.utilities.load_config import load_config
 from src.modules.tokenizers.tokenizer import *
 
 
-def preprocess(arguments):
-    used_model = arguments['tasks']['model']
-    dataset_root = arguments['dataset_root']
-    train_json_file = arguments['net_structure']['dataset']['train_json_file']
-    valid_json_file = arguments['net_structure']['dataset']['valid_json_file']
-    craw_corpus_en_file = arguments['net_structure']['dataset']['corpus_en_file']
-    craw_corpus_zh_file = arguments['net_structure']['dataset']['corpus_zh_file']
-    file_train_en_file = arguments['net_structure']['dataset']['train_en_file']
-    file_train_zh_file = arguments['net_structure']['dataset']['train_zh_file']
-    file_test_en_file = arguments['net_structure']['dataset']['test_en_file']
-    file_test_zh_file = arguments['net_structure']['dataset']['test_zh_file']
-    test_size = arguments['training']['test_size']
-    max_len = arguments['model'][used_model]['max_len'] - 4   # condidering sos, eos, pad, unk
-    random_state = arguments['general']['random_state']
+def preprocess(config):
+    used_model = config['tasks']['model']
+    dataset_root = config['dataset_root']
+    train_json_file = config['net_structure']['dataset']['train_json_file']
+    valid_json_file = config['net_structure']['dataset']['valid_json_file']
+    craw_corpus_en_file = config['net_structure']['dataset']['corpus_en_file']
+    craw_corpus_zh_file = config['net_structure']['dataset']['corpus_zh_file']
+    file_train_en_file = config['net_structure']['dataset']['train_en_file']
+    file_train_zh_file = config['net_structure']['dataset']['train_zh_file']
+    file_test_en_file = config['net_structure']['dataset']['test_en_file']
+    file_test_zh_file = config['net_structure']['dataset']['test_zh_file']
+    test_size = config['training']['test_size']
+    max_len = config['model'][used_model]['max_len'] - 4   # condidering sos, eos, pad, unk
+    random_state = config['general']['random_state']
     module_obj = sys.modules['src.utilities.load_data']
-    use_bert = arguments['net_structure']['use_bert']
-    device = arguments['general']['device']
+
 
     # max_lines = 100000
     data_text_en = []
@@ -72,31 +71,17 @@ def preprocess(arguments):
     #
 
     # 按照实际业务处理的分词配置筛选预料，过滤过短和过长的句子。
-    if use_bert not in ['static', 'dynamic']:
-        fun_name_en = arguments['net_structure']['word_vector']['tokenizer_en_file']
-        fun_name_zh = arguments['net_structure']['word_vector']['tokenizer_zh_file']
-        en_filter = getattr(module_obj, fun_name_en)
-        zh_filter = getattr(module_obj, fun_name_zh)
-    else:
-        # en_filter = get_bert_tokenizer(arguments, language='en').tokenize
-        # zh_filter = get_bert_tokenizer(arguments, language='zh').tokenize
-        en_filter = get_bert_tokenizer(arguments, language='en')
-        zh_filter = get_bert_tokenizer(arguments, language='zh')
+    fun_name_en = config['net_structure']['word_vector']['tokenizer_en_file']
+    fun_name_zh = config['net_structure']['word_vector']['tokenizer_zh_file']
+    en_filter = getattr(module_obj, fun_name_en)
+    zh_filter = getattr(module_obj, fun_name_zh)
     data_set = []
-    if (use_bert not in ['static', 'dynamic']) and (fun_name_en == 'tokenize_en_bySpacy'):
+    if fun_name_en == 'tokenize_en_bySpacy':
         for i,text in tqdm(enumerate(data_text_en)):
             en_len = count_token(text)
             zh_len = len(zh_filter(data_text_zh[i]))
             if (en_len > 4) and (en_len < max_len) and (zh_len < max_len):
                 data_set.append((data_text_zh[i], text))
-    elif use_bert in ['static', 'dynamic']:
-        token_list_en = en_filter(data_text_en)['input_ids']
-        token_list_zh = en_filter(data_text_zh)['input_ids']
-        for i,token_list in tqdm(enumerate(token_list_en)):
-            en_len = len(token_list)
-            zh_len = len(token_list_zh[i])
-            if (en_len > 4) and (en_len < max_len) and (zh_len < max_len):
-                data_set.append((data_text_zh[i], data_text_en[i]))
     else:
         for i,text in tqdm(enumerate(data_text_en)):
             en_len = len(en_filter(text))
@@ -117,5 +102,5 @@ def preprocess(arguments):
     return "over"
 
 if __name__ == '__main__':
-    arguments = load_arguments('file_config.yaml')
-    preprocess(arguments)
+    config = load_config('file_config.yaml')
+    preprocess(config)

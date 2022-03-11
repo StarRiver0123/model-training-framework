@@ -6,19 +6,14 @@ import os, sys
 # this is a testing framework
 # the callback function do_test and do_test need to be implemented in task test codes.
 class Tester():
-    def __init__(self, arguments):
-        self.arguments = arguments
-        self.used_model = arguments['net_structure']['model']
-        self.max_len = arguments['model'][self.used_model]['max_len']
-        self.batch_interval_for_log = arguments['testing']['batch_interval_for_log']
-        self.batch_size_for_test = arguments['testing']['batch_size']
-        assert self.batch_size_for_test == 1
-        self.model_save_mode = arguments['training']['model_save']['save_mode']   # 读取训练配置
-        self.model_save_root = arguments['check_point_root']
-        self.saved_model_file = arguments['testing']['saved_model_file']
-        self.device = arguments['general']['device']
-        self.pad_token = arguments['dataset']['symbol']['pad_token']
-        self.logger = arguments['logger']
+    def __init__(self, config):
+        self.config = config
+        # self.used_model = config['model_config']['model_name']
+        self.max_len = config['model_config']['max_len']
+        self.device = config['general']['device']
+        # self.pad_token = config['symbol_config']['pad_token']
+        self.batch_interval_for_log = config['testing']['batch_interval_for_log']
+        self.logger = config['logger']
 
     def test(self, model, test_iter, compute_predict_evaluation_func, compute_predict_evaluation_outer_params):
         model.model.eval()
@@ -26,8 +21,8 @@ class Tester():
             total_evaluation = 0
             mean_evaluation = 0
             for i, test_example in enumerate(test_iter):
-                if len(test_example) < self.batch_size_for_test:
-                    continue
+                # if len(test_example) < self.batch_size_for_test:
+                #     continue
                 if i % self.batch_interval_for_log == 0:
                     do_log = True
                 else:
@@ -57,13 +52,3 @@ class Tester():
                 self.logger.info(log_str, extra={'file_name': os.path.basename(__file__), 'line_no': sys._getframe().f_lineno})
             log_string_list.clear()
 
-
-    def load_model(self, get_model_state_func, get_model_state_outer_params):
-        model_file_path = self.model_save_root + os.path.sep + self.saved_model_file
-        if self.model_save_mode == 'model':
-            model = torch.load(model_file_path)
-            return model, None, None, None
-        elif self.model_save_mode == 'state':
-            loaded_weights = torch.load(model_file_path)
-            model_states = get_model_state_func(self.arguments, loaded_weights, **get_model_state_outer_params)
-            return model_states

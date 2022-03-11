@@ -4,30 +4,29 @@ from src.modules.models.base_component import gen_pad_only_mask, gen_seq_only_ma
 from src.modules.trainer.trainer_framework import Trainer
 import os, sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from build_dataset import load_train_valid_split_set, get_data_iterator
-from build_model import AnswerGradeModel
+from build_dataset import *
+from build_model import TrainingModel
 
 
-def train_model(arguments):
-    # get the dataset and data iterator
-    train_set, valid_set = load_train_valid_split_set(arguments)
-    train_iter, valid_iter, text_field = get_data_iterator(arguments, train_set=train_set, valid_set=valid_set)
-    # get the model and arguments
-    use_bert = arguments['net_structure']['use_bert']
-    pad_idx = arguments['dataset']['symbol']['pad_idx']
+def train_model(config):
+    # step 1: build dataset and vocab
+    train_iter, valid_iter, text_field = build_train_dataset_and_vocab_pipeline(config)
+    # step 2: build model
+    used_model = config['net_structure']['model']
+    use_bert = config['model'][used_model]['use_bert']
     if not use_bert:
-        model = AnswerGradeModel(arguments, word_vector=text_field.vocab.vectors)
+        word_vectors = text_field.vocab.vectors
     else:
-        bert_model = get_bert_model(arguments, language='zh')
-        model = AnswerGradeModel(arguments, bert_model=bert_model)
-    # get the trainer
-    trainer = Trainer(arguments)
-    # start train
+        word_vectors = None
+    model = TrainingModel(config, word_vectors)
+    # step 3: get the trainer
+    trainer = Trainer(config)
+    # step 4: start train
     trainer.train(model=model, train_iter=train_iter, compute_predict_loss_func=compute_predict_loss,
                   compute_predict_loss_outer_params={'text_field': text_field},
                   valid_iter=valid_iter, compute_predict_evaluation_func=compute_predict_evaluation,
                   compute_predict_evaluation_outer_params={'text_field': text_field},
-                  get_model_state_func=get_model_state_func, get_model_state_outer_params={'text_vocab': text_field.vocab})
+                  save_model_state_func=save_model_state_func, save_model_state_outer_params={})
 
 # this function needs to be defined from the view of concrete task
 def compute_predict_loss(model, data_example, max_len, device, do_log, log_string_list, text_field):
@@ -58,42 +57,10 @@ def compute_predict_evaluation(model, data_example, max_len, device, do_log, log
     return None, None, evaluation
 
 
-def get_model_state_func(model, arguments, text_vocab):
-    # model is from inner trainer framework,
-    used_model = arguments['net_structure']['model']
-    use_bert = arguments['net_structure']['use_bert']
-    save_model = arguments['training']['model_save']['save_model']
-    save_criterion = arguments['training']['model_save']['save_criterion']
-    save_optimizer = arguments['training']['model_save']['save_optimizer']
-    save_lr_scheduler = arguments['training']['model_save']['save_lr_scheduler']
-    save_evaluator = arguments['training']['model_save']['save_evaluator']
-    model_state_dict = {}
-    if save_model:
-        model_state_dict.update({'model': model.model.state_dict()})
-    if save_criterion:
-        model_state_dict.update({'criterion': model.criterion.state_dict()})
-    if save_optimizer:
-        model_state_dict.update({'optimizer': model.optimizer.state_dict()})
-    if save_lr_scheduler:
-        model_state_dict.update({'lr_scheduler': model.lr_scheduler.state_dict()})
-    if save_evaluator:
-        model_state_dict.update({'evaluator': model.evaluator.state_dict()})
-
-    model_creation_args = {}
-    model_vocab = {'text_vocab_stoi': text_vocab.stoi,
-                    'text_vocab_itos': text_vocab.itos
-                    }
-    extra_states = {'vocab_len': arguments['model'][used_model]['vocab_len']}
-    extra_states.update({'unk_token': arguments['dataset']['symbol']['unk_token'],
-                         'pad_token': arguments['dataset']['symbol']['pad_token'],
-                         'unk_idx': arguments['dataset']['symbol']['unk_idx'],
-                         'pad_idx': arguments['dataset']['symbol']['pad_idx']
-                         })
-    if use_bert:
-        extra_states.update({'sos_token': arguments['dataset']['symbol']['sos_token'],
-                             'eos_token': arguments['dataset']['symbol']['eos_token'],
-                             'sos_idx': arguments['dataset']['symbol']['sos_idx'],
-                             'eos_idx': arguments['dataset']['symbol']['eos_idx']
-                             })
-
-    return {'model_state_dict': model_state_dict, 'model_creation_args': model_creation_args, 'model_vocab': model_vocab, 'extra_states': extra_states}
+def save_model_state_func(model, config):
+    # model and config is from inner trainer framework
+    model_state_dict = model.model.state_dict()
+    model_vocab = config['model_vocab']
+    model_config = config['model_config']
+    symbol_config = config['symbol_config']
+    return {'model_state_dict': model_state_dict, 'model_vocab': model_vocab, 'model_config': model_config, 'symbol_config': symbol_config}

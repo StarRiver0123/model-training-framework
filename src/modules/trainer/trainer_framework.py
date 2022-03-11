@@ -8,29 +8,28 @@ from src.utilities.create_logger import create_logger
 # this is a training framework
 # the callback function epoch_train and epoch_validate need to be implemented in task train codes.
 class Trainer():
-    def __init__(self, arguments):
-        self.arguments = arguments
-        self.used_model = arguments['net_structure']['model']
-        self.max_len = arguments['model'][self.used_model]['max_len']
-        self.epochs = arguments['training']['epochs']
-        self.batch_size = arguments['training']['batch_size']
-        self.batch_interval_for_log = arguments['training']['batch_interval_for_log']
-        self.validating = arguments['training']['validating']
-        self.loss_threshold = arguments['training']['loss_threshold']
-        self.evaluation_threshold = arguments['training']['evaluation_threshold']
-        self.save_model = arguments['training']['model_save']['save_model']
-        self.model_save_mode = arguments['training']['model_save']['save_mode']
-        self.model_save_root = arguments['check_point_root']
-        self.device = arguments['general']['device']
-        self.pad_token = arguments['dataset']['symbol']['pad_token']
-        self.logger = arguments['logger']
-        self.max_norm = arguments['training']['max_norm']
-        self.resume_from_check_point = arguments['training']['resume_from_check_point']
-        self.model_check_point_file = arguments['training']['model_check_point_file']
-        self.save_check_point = arguments['training']['save_check_point']
-        self.check_point_epoch_step = arguments['training']['check_point_epoch_step']
+    def __init__(self, config):
+        self.config = config
+        self.used_model = config['net_structure']['model']
+        self.used_evaluator = config['net_structure']['evaluator']
+        self.max_len = config['model'][self.used_model]['max_len']
+        self.epochs = config['training']['epochs']
+        self.batch_size = config['training']['batch_size']
+        self.batch_interval_for_log = config['training']['batch_interval_for_log']
+        self.validating = config['training']['validating']
+        self.loss_threshold = config['training']['loss_threshold']
+        self.evaluation_threshold = config['training']['evaluation_threshold']
+        self.model_save_root = config['check_point_root']
+        self.device = config['general']['device']
+        self.pad_token = config['dataset']['general_symbol']['pad_token']
+        self.logger = config['logger']
+        self.max_norm = config['training']['max_norm']
+        self.resume_from_check_point = config['training']['resume_from_check_point']
+        self.model_check_point_file = config['training']['model_check_point_file']
+        self.save_check_point = config['training']['save_check_point']
+        self.check_point_epoch_step = config['training']['check_point_epoch_step']
 
-    def train(self, model, train_iter, compute_predict_loss_func, compute_predict_loss_outer_params, valid_iter=None,  compute_predict_evaluation_func=None, compute_predict_evaluation_outer_params=None, get_model_state_func=None, get_model_state_outer_params=None):
+    def train(self, model, train_iter, compute_predict_loss_func, compute_predict_loss_outer_params, valid_iter=None,  compute_predict_evaluation_func=None, compute_predict_evaluation_outer_params=None, save_model_state_func=None, save_model_state_outer_params=None):
         best_loss = self.loss_threshold
         best_evaluation = self.evaluation_threshold
         start_epoch = 0
@@ -55,10 +54,8 @@ class Trainer():
                     epoch_evaluation = self._epoch_validate(model, epoch, valid_iter, compute_predict_evaluation_func, compute_predict_evaluation_outer_params)
                     if epoch_evaluation > best_evaluation:
                         best_evaluation = epoch_evaluation
-                        if self.save_model:
-                            self._save_model(model, is_check_point=False, epoch=epoch, loss=best_loss, evaluation=best_evaluation, get_model_state_func=get_model_state_func, get_model_state_outer_params=get_model_state_outer_params)
-                elif self.save_model:
-                    self._save_model(model, is_check_point=False, epoch=epoch, loss=best_loss, evaluation=best_evaluation, get_model_state_func=get_model_state_func, get_model_state_outer_params=get_model_state_outer_params)
+                        self._save_model(model, is_check_point=False, epoch=epoch, loss=best_loss, evaluation=best_evaluation, save_model_state_func=save_model_state_func, save_model_state_outer_params=save_model_state_outer_params)
+                self._save_model(model, is_check_point=False, epoch=epoch, loss=best_loss, evaluation=best_evaluation, save_model_state_func=save_model_state_func, save_model_state_outer_params=save_model_state_outer_params)
         print("training finished.")
 
     def _epoch_train(self, model, epoch, train_iter, compute_predict_loss_func, compute_predict_loss_outer_params):
@@ -121,7 +118,7 @@ class Trainer():
                     log_string_list.clear()
         return mean_evaluation
 
-    def _save_model(self, model, is_check_point=False, epoch=None, loss=None, evaluation=None, get_model_state_func=None, get_model_state_outer_params=None):
+    def _save_model(self, model, is_check_point=False, epoch=None, loss=None, evaluation=None, save_model_state_func=None, save_model_state_outer_params=None):
         # model_save_path = self.project_root + os.path.sep + self.model_save_root + os.path.sep + self.running_task
         if not os.path.exists(self.model_save_root):
             os.makedirs(self.model_save_root)
@@ -134,12 +131,9 @@ class Trainer():
                            'lr_scheduler': model.lr_scheduler.state_dict()
                            }
             torch.save(check_point, file_name)
-        elif self.model_save_mode == 'state':
-            file_name = self.model_save_root + os.path.sep + 'model' + '_epoch_{:03d}_loss_{:0.5f}_eval_{:0.5f}_'.format(epoch, loss, evaluation) + time_stamp + '.pt'
-            model_state = get_model_state_func(model, self.arguments, **get_model_state_outer_params)
-            training_states = {'mean_loss': loss, 'mean_evaluation': evaluation, 'epoch': epoch}
-            model_state.update({'training_states': training_states})
-            torch.save(model_state, file_name)
-        elif self.model_save_mode == 'model':
-            file_name = self.model_save_root + os.path.sep + 'model' + '_epoch_{:03d}_loss_{:0.5f}_eval_{:0.5f}_'.format(epoch, loss, evaluation) + time_stamp + '.pt'
-            torch.save(model.model, file_name)
+        else:
+            file_name = self.model_save_root + os.path.sep + 'model' + '_epoch_{:03d}_loss_{:0.5f}_'.format(epoch, loss) + self.used_evaluator + '_{:0.5f}_'.format(evaluation) + time_stamp + '.pt'
+            model_states = save_model_state_func(model, self.config, **save_model_state_outer_params)
+            training_states = {'mean_loss': loss, self.used_evaluator: evaluation, 'epoch': epoch}
+            model_states.update({'training_states': training_states})
+            torch.save(model_states, file_name)

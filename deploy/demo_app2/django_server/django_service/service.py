@@ -9,7 +9,7 @@ import requests, json
 import importlib
 import sys, os
 sys.path.append(os.getcwd())
-from src.utilities.load_data import load_config
+from src.utilities.load_data import get_config
 # 注意：os.getcwd()不是显示的代码所在文件的当前路径，而是调用者所在路径！！！！！！
 # os.path.dirname(os.path.abspath(__file__)) 获取代码所在文件的路径
 
@@ -25,7 +25,7 @@ service_module_root = 'deploy.' + running_app + '.services.src.'
 # robot_internet = ChatRobotByInternet()
 app_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 app_config_file = app_root + os.path.sep + 'config_app.yaml'
-config = load_config(app_config_file)
+config = get_config(app_config_file)
 
 vector_file = app_root + os.path.sep + 'services/data/' + config['vector_file']
 template_file = app_root + os.path.sep + 'services/data/' + config['template_file']
