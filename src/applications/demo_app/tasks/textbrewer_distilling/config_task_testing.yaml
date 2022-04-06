@@ -1,0 +1,64 @@
+net_structure:
+  dataset:
+    test_set_file: for_model_distilling/test.csv
+  saved_model_file: model_epoch_000_loss_1.68517_f1_score_0.76008_20220402223417.pt
+  pretrained_bert_model_file: macbert-base-chinese
+  student_model_config_file: self_defined_bert/bert_L3_config.json
+  evaluator: f1_score
+
+test_text_transforming_adaptor:    # 如果数据样本的某个filed不需要进行转换处理比如标签label，则对应的transform_key付为空字符串或者None
+  distilled_student:
+    input_for_student: (0, 'input_for_bert')
+    labels: (1, None)
+  pure_student:
+    input_for_student: (0, 'input_for_bert')
+    labels: (1, None)
+  teacher:
+    input_for_teacher: (0, 'input_for_bert')
+    labels: (1, None)
+
+# 语料输入模型（转换成向量）之前的处理配置
+text_transforming:    # 不仅限于对文本预料的处理，还可以对目标标签进行处理，比如NER任务的标签。
+  input_for_bert:
+    use_bert_style: !!bool True
+    use_tokenizing: !!bool True              # 如果需要序列化，就要配置用什么tokenizer。注意即使模型使用bert，tokenizer也可以不用bert自带的，比如使用split
+    tokenizer:                               # 如果use_tokenizing为False，则此设置失效    # bert, spacy, moses, toktok, revtok, subword, basic_english, 自定义的函数
+    language:                                # 如果use_tokenizing为False，则此设置失效
+    use_numericalizing: !!bool True          # 如果需要数字化，就需要对应的词典，这个词典要么从预料中统计，要么使用bert的词典
+    corpus_field_index_for_vocab_building:   # 如果use_bert_style为True或use_numericalizing为False，则此设置失效    # 必须是单个，或者连续的多个（写成列表切片式）
+    use_padding:                             # 如果use_bert_style为True，则此设置失效
+    use_start_end_symbol:                    # 如果use_bert_style为True，则此设置失效
+  input_for_nonbert:
+    use_bert_style: !!bool False
+    use_tokenizing: !!bool False             # 如果需要序列化，就要配置用什么tokenizer。注意即使模型使用bert，tokenizer也可以不用bert自带的，比如使用split
+    tokenizer:                               # 如果use_tokenizing为False，则此设置失效    # bert, spacy, moses, toktok, revtok, subword, basic_english, 自定义的函数
+    language:                                # 如果use_tokenizing为False，则此设置失效
+    use_numericalizing: !!bool True          # 如果需要数字化，就需要对应的词典，这个词典要么从预料中统计，要么使用bert的词典
+    corpus_field_index_for_vocab_building: 0 # 如果use_bert_style为True或use_numericalizing为False，则此设置失效    # 必须是单个，或者连续的多个（写成列表切片式）
+    use_padding: !!bool True                 # 如果use_bert_style为True，则此设置失效
+    use_start_end_symbol: !!bool True        # 如果use_bert_style为True，则此设置失效
+  labels_for_ner:
+    use_bert_style: !!bool False
+    use_tokenizing: !!bool False             # 如果需要序列化，就要配置用什么tokenizer。注意即使模型使用bert，tokenizer也可以不用bert自带的，比如使用split
+    tokenizer:                               # 如果use_tokenizing为False，则此设置失效    # bert, spacy, moses, toktok, revtok, subword, basic_english, 自定义的函数
+    language:                                # 如果use_tokenizing为False，则此设置失效
+    use_numericalizing: !!bool True          # 如果需要数字化，就需要对应的词典，这个词典要么从预料中统计，要么使用bert的词典
+    corpus_field_index_for_vocab_building: 1 # 如果use_bert_style为True或use_numericalizing为False，则此设置失效    # 必须是单个，或者连续的多个（写成列表切片式）
+    use_padding: !!bool True                 # 如果use_bert_style为True，则此设置失效
+    use_start_end_symbol: !!bool True        # 如果use_bert_style为True，则此设置失效
+
+testing:
+  #batch_size: 1    # must set to 1
+  batch_interval_for_log: 1
+
+logging:
+  sys_log_level: debug    # must be: debug, info, warning, error, critical
+  file_log_level: debug
+  console_log_level: info
+
+
+#以下是预留键，不要填写东西。
+model_state_dict:
+model_config:
+vocab_config:
+symbol_config:

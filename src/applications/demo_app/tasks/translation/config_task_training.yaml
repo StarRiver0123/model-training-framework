@@ -4,32 +4,70 @@ general:
 
 net_structure:
   dataset:
-    train_json_file: 'for_translation/translation2019zh/translation2019zh_train.json'
-    valid_json_file: 'for_translation/translation2019zh/translation2019zh_valid.json'
-    src_corpus_file: 'for_translation/train.en'
-    tgt_corpus_file: 'for_translation/train.zh'
-    src_train_file: 'for_translation/use_static_bert/1000_en.txt'
-    tgt_train_file: 'for_translation/use_static_bert/1000_zh.txt'
-    src_test_file: 'for_translation/use_static_bert/1000_en.txt'
-    tgt_test_file: 'for_translation/use_static_bert/1000_zh.txt'
-  tokenizer:
-    src_tokenizer: 'tokenize_en_byJieba'
-    tgt_tokenizer: 'tokenize_zh_byJieba'
-  word_vector:
-    src_vectors_file: 'glove.6B.300d.txt'
-    tgt_vectors_file: 'sgns.wiki.bigram-char'
-  model: 'torch_transformer'  # starriver_transformer or torch_transformer
-  criterion: 'ce'  # lsce or ce
-  optimizer: 'adam'
-  lr_scheduler: 'cosdecay'   # steplr or warmup or cosdecay
-  evaluator: 'bleu'
+    train_json_file: for_translation/translation2019zh/translation2019zh_train.json
+    valid_json_file: for_translation/translation2019zh/translation2019zh_valid.json
+    src_corpus_file: for_translation/train.en
+    tgt_corpus_file: for_translation/train.zh
+    src_train_file: for_translation/use_static_bert/1000_en.txt
+    tgt_train_file: for_translation/use_static_bert/1000_zh.txt
+    src_test_file: for_translation/use_static_bert/1000_en.txt
+    tgt_test_file: for_translation/use_static_bert/1000_zh.txt
+    valid_size: 0.002    # proportion of the sum of train set and valid set
+    test_size: 0.002     # proportion of the sum of train set and valid set and test set
+  model: torch_transformer  # starriver_transformer or torch_transformer
+  criterion: ce # lsce or ce
+  optimizer: adamw
+  lr_scheduler: cosdecay   # steplr or cosdecay, or self_adjusting
+  evaluator: bleu
+
+
+train_text_transforming_adaptor:    # 如果数据样本的某个filed不需要进行转换处理比如标签label，则对应的transform_key付为空字符串或者None
+  torch_transformer:
+    source_seqs: (0, 'input_for_source')
+    target_seqs: (1, 'input_for_target')
+  starriver_transformer:
+    source_seqs: (0, 'input_for_source')
+    target_seqs: (1, 'input_for_target')
+
+valid_text_transforming_adaptor:    # 如果数据样本的某个filed不需要进行转换处理比如标签label，则对应的transform_key付为空字符串或者None
+  torch_transformer:
+    source_seqs: (0, 'input_for_source')
+    target_seqs: (1, 'input_for_target')
+  starriver_transformer:
+    source_seqs: (0, 'input_for_source')
+    target_seqs: (1, 'input_for_target')
+
+# 语料输入模型（转换成向量）之前的处理配置和词向量的处理配置
+text_transforming:    # 不仅限于对文本预料的处理，还可以对目标标签进行处理，比如NER任务的标签。
+  input_for_source:
+    use_bert_style: !!bool False
+    use_tokenizing: !!bool True             # 如果需要序列化，就要配置用什么tokenizer。注意即使模型使用bert，tokenizer也可以不用bert自带的，比如使用split
+    tokenizer: tokenize_en_byJieba          # 如果use_tokenizing为False，则此设置失效    # bert, spacy, moses, toktok, revtok, subword, basic_english, 自定义的函数
+    language: en                             # 如果use_tokenizing为False，则此设置失效
+    use_numericalizing: !!bool True          # 如果需要数字化，就需要对应的词典，这个词典要么从预料中统计，要么使用bert的词典
+    corpus_field_index_for_vocab_building: 0  # 如果use_bert_style为True或use_numericalizing为False，则此设置失效    # 必须是单个，或者连续的多个（写成列表切片式）
+    use_padding: !!bool True                 # 如果use_bert_style为True，则此设置失效
+    use_start_end_symbol: !!bool True         # 如果use_bert_style为True，则此设置失效
+    use_pretrained_word_vector: !!bool True
+    pretrained_word_vector_file: glove.6B.300d.txt        # 如果对应模型的use_bert为True，则此设置失效
+  input_for_target:
+    use_bert_style: !!bool False
+    use_tokenizing: !!bool True             # 如果需要序列化，就要配置用什么tokenizer。注意即使模型使用bert，tokenizer也可以不用bert自带的，比如使用split
+    tokenizer: tokenize_en_byJieba          # 如果use_tokenizing为False，则此设置失效    # bert, spacy, moses, toktok, revtok, subword, basic_english, 自定义的函数
+    language: zh                             # 如果use_tokenizing为False，则此设置失效
+    use_numericalizing: !!bool True          # 如果需要数字化，就需要对应的词典，这个词典要么从预料中统计，要么使用bert的词典
+    corpus_field_index_for_vocab_building: 1 # 如果use_bert_style为True或use_numericalizing为False，则此设置失效    # 必须是单个，或者连续的多个（写成列表切片式）
+    use_padding: !!bool True                 # 如果use_bert_style为True，则此设置失效
+    use_start_end_symbol: !!bool True        # 如果use_bert_style为True，则此设置失效
+    use_pretrained_word_vector: !!bool True
+    pretrained_word_vector_file: sgns.wiki.bigram-char        # 如果对应模型的use_bert为True，则此设置失效
 
 dataset:
   general_symbol:
-    sos_token: '<sos>'
-    eos_token: '<eos>'
-    pad_token: '<pad>'
-    unk_token: '<unk>'
+    sos_token: <sos>
+    eos_token: <eos>
+    pad_token: <pad>
+    unk_token: <unk>
 
 model:
   starriver_transformer:
@@ -62,7 +100,7 @@ optimizer:
     beta2: 0.98
     eps: !!float 1e-9
   adamw:
-    lr: !!float 3e-5
+    lr: !!float 1e-4      #翻译任务：1e-4，ner任务：3e-5 for bert, 1e-3 for lstm
     beta1: 0.9
     beta2: 0.999
     eps: !!float 1e-9
@@ -71,35 +109,36 @@ lr_scheduler:
   steplr:
     step_size: 100
     gamma: 0.999
-  warmup:
-    factor: 1
-    step_size: 1
-    lr_warmup_step: 40
   cosdecay:
-    max_lr: !!float 1e-4      #翻译任务：1e-4，ner任务：3e-5 for bert, 1e-4 for lstm
     min_lr: !!float 1e-8
     step_size: 5          # 这个参数在函数内部被屏蔽了，因为存在一个隐藏的bug。详见函数注释。
     warmup_size: 0.02
+  self_adjusting:
+    mean_loss_window: 64
+    cross_mean: !!bool False
+    adjusting_ratio: 0.1
+    warmup_size: 0.0
+    smoothing_zero: !!float 1e-8
 
 evaluator:
 
 training:
   resume_from_check_point: !!bool False
-  model_check_point_file: '.pt'
+  full_resume: !!bool False
+  model_check_point_file:
   save_check_point: !!bool False
   check_point_epoch_step: 1
   epochs: 1
-  batch_size: 4
-  valid_size: 0.002    # proportion of the sum of train set and valid set
-  test_size: 0.002     # proportion of the sum of train set and valid set and test set
-  bert_full_fine_tuning: !!bool True
+  batch_size: 8
+  pretrained_bert_full_fine_tuning: !!bool True
+  pretrained_word_vector_full_fine_tuning: !!bool True
   validating: !!bool True
-  loss_threshold: 10  #2
-  evaluation_threshold: -10 # 0.1
-  batch_interval_for_log: 100
+  loss_threshold: 10.5
+  evaluation_threshold: -10.6
+  batch_interval_for_log: 10
   max_norm: 5
 
 logging:
-  sys_log_level: 'debug'    # must be: debug, info, warning, error, critical
-  file_log_level: 'debug'
-  console_log_level: 'info'
+  sys_log_level: debug    # must be: debug, info, warning, error, critical
+  file_log_level: debug
+  console_log_level: info

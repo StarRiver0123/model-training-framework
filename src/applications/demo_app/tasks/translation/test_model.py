@@ -16,29 +16,34 @@ def test_model(config):
     # step 2: get the tester
     tester = Tester(config)
     # step 3: get the data iterator and field
-    test_iter, src_field, tgt_field = build_test_dataset_pipeline(config)
+    test_iter = build_test_dataset_pipeline(config)
     # step 4: get the model and update config
-    model, _, _ = load_model_and_vocab(config, src_field, tgt_field)
+    model = load_model_and_vocab(config)
     # step 5: start test
-    pad_idx = config['symbol_config']['pad_idx']
+    used_model = config['model_config']['model_name']
+    src_transforming_key = eval(config['test_text_transforming_adaptor'][used_model]['source_seqs'])[1]
+    tgt_transforming_key = eval(config['test_text_transforming_adaptor'][used_model]['target_seqs'])[1]
+    src_vocab = config['vocab_config'][src_transforming_key]
+    tgt_vocab = config['vocab_config'][tgt_transforming_key]
+    tgt_pad_idx = config['symbol_config'][tgt_transforming_key]['pad_idx']
     tester.test(model=model, test_iter=test_iter,
                   compute_predict_evaluation_func=compute_predict_evaluation,
                   compute_predict_evaluation_outer_params={
-                      'source_field': src_field, 'target_field': tgt_field, 'pad_idx': pad_idx})
+                      'src_vocab': src_vocab, 'tgt_vocab': tgt_vocab, 'pad_idx': tgt_pad_idx})
 
 
 # this function needs to be defined from the view of concrete task
-def compute_predict_evaluation(model, data_example, max_len, device, do_log, log_string_list, source_field, target_field, pad_idx):
+def compute_predict_evaluation(model, data_example, max_len, device, do_log, log_string_list, src_vocab, tgt_vocab, pad_idx):
     # model, data_example, device, do_log, log_string_list are from inner tester framework
     # output: predict: N,L,D,  target: N,L
-    if data_example.Source.size(1) > max_len:
-        source = data_example.Source[:, :max_len].to(device)
+    if data_example[0].size(1) > max_len:
+        source = data_example[0][:, :max_len].to(device)
     else:
-        source = data_example.Source.to(device)
-    if data_example.Target.size(1) > max_len:
-        target = data_example.Target[:, :max_len].to(device)
+        source = data_example[0].to(device)
+    if data_example[1].size(1) > max_len:
+        target = data_example[1][:, :max_len].to(device)
     else:
-        target = data_example.Target.to(device)
+        target = data_example[1].to(device)
     target_real = target[:, 1:-1]     # remove sos_token and end_sos_token, there should be no pad_token
     sos_idx = target[0, 0].item()
     eos_idx = target[0, -1].item()
@@ -46,12 +51,12 @@ def compute_predict_evaluation(model, data_example, max_len, device, do_log, log
     evaluation = model.evaluator(predict, target_real)
     if do_log:
         log_string_list.append(
-            "Source string:  " + ' '.join(source_field.vocab.itos[index] for index in source[0, 1:-1]))    #可能有的词会被替换成<unk>输出，因为在soti的时候在字典里查不到。
+            "Source string:  " + ' '.join(src_vocab.get_itos()[index] for index in source[0, 1:-1]))    #可能有的词会被替换成<unk>输出，因为在soti的时候在字典里查不到。
         log_string_list.append("Source code:    " + ' '.join(str(index.item()) for index in source[0, 1:-1]))
         log_string_list.append(
-            "Target string:  " + ' '.join(target_field.vocab.itos[index] for index in target[0, 1:-1]))
+            "Target string:  " + ' '.join(tgt_vocab.get_itos()[index] for index in target[0, 1:-1]))
         log_string_list.append("Target code:    " + ' '.join(str(index.item()) for index in target[0, 1:-1]))
-        log_string_list.append("Predict string: " + ' '.join(target_field.vocab.itos[index] for index in predict[0, 1:]))
+        log_string_list.append("Predict string: " + ' '.join(tgt_vocab.get_itos()[index] for index in predict[0, 1:]))
         log_string_list.append("Predict code:   " + ' '.join(str(index.item()) for index in predict[0, 1:]) + '\n')
     return predict, target_real, evaluation
 
@@ -73,17 +78,11 @@ def greedy_decode(model, source, device, max_len, sos_idx, eos_idx, pad_idx=None
     return predict
 
 
-def load_model_and_vocab(config, src_field=None, tgt_field=None):
+def load_model_and_vocab(config):
     model_state_dict = config['model_state_dict']
     model = TestingModel(config)
     model.model.load_state_dict(model_state_dict)
-    src_vocab_stoi = config['model_vocab']['src_vocab_stoi']
-    src_vocab_itos = config['model_vocab']['src_vocab_itos']
-    tgt_vocab_stoi = config['model_vocab']['tgt_vocab_stoi']
-    tgt_vocab_itos = config['model_vocab']['tgt_vocab_itos']
-    build_field_vocab_special_tokens(src_field, src_vocab_stoi, src_vocab_itos)
-    build_field_vocab_special_tokens(tgt_field, tgt_vocab_stoi, tgt_vocab_itos)
-    return model, tgt_vocab_stoi, tgt_vocab_itos
+    return model
 
 
 def load_model_states_into_config(config):

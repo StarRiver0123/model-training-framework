@@ -1,0 +1,87 @@
+general:
+  random_state: 42
+  device:
+
+net_structure:
+  dataset:
+    corpus_qa_file: 'for_answer_grade/data_src.csv'
+    train_q_file: 'for_answer_grade/train_q.txt'
+    train_a_file: 'for_answer_grade/train_a.txt'
+    gen_num_total_examples: 1000   #10000
+    valid_size: 0.05    # proportion of the sum of train set and valid set
+    test_size: 0.05     # proportion of the sum of train set and valid set and test set
+  model: 'twin_textrnn'
+  bert_model_file: 'chinese-bert-wwm-ext'
+  tokenizer: 'tokenize_zh_byJieba'
+  word_vector_file: 'sgns.wiki.bigram-char'
+  criterion: 'triple'
+  optimizer: 'adam'
+  lr_scheduler: 'cosdecay'   # steplr or warmup or cosdecay
+  evaluator: 'cosine_similarity'
+
+dataset:
+  general_symbol:
+    sos_token: '<sos>'
+    eos_token: '<eos>'
+    pad_token: '<pad>'
+    unk_token: '<unk>'
+
+model:
+  twin_textrnn:
+    use_bert: !!bool False
+    d_model: 300
+    hidden_size: 128
+    num_layers: 3
+    p_drop: 0.1
+    max_len: 512
+
+criteria:
+  lsce:
+    label_smoothing: 0.1
+
+optimizer:
+  adam:
+    lr: !!float 1e-3
+    beta1: 0.9
+    beta2: 0.98
+    eps: !!float 1e-9
+  adamw:
+    lr: !!float 3e-5   #翻译任务：1e-4，ner任务：3e-5 for bert, 1e-4 for lstm
+    beta1: 0.9
+    beta2: 0.999
+    eps: !!float 1e-9
+
+lr_scheduler:
+  steplr:
+    step_size: 100
+    gamma: 0.999
+  warmup:
+    factor: 1
+    step_size: 1
+    lr_warmup_step: 40
+  cosdecay:
+    min_lr: !!float 1e-8
+    step_size: 5          # 这个参数在函数内部被屏蔽了，因为存在一个隐藏的bug。详见函数注释。
+    warmup_size: 0.02
+
+evaluator:
+
+training:
+  resume_from_check_point: !!bool False
+  full_resume: !!bool False
+  model_check_point_file: 'check_point_epoch_004_loss_6.33063_20211218220318.pt'
+  save_check_point: !!bool False
+  check_point_epoch_step: 1
+  epochs: 1
+  batch_size: 32
+  bert_full_fine_tuning: !!bool True
+  validating: !!bool True
+  loss_threshold: 10  #0.5
+  evaluation_threshold: -10  #0.5
+  batch_interval_for_log: 10
+  max_norm: 5
+
+logging:
+  sys_log_level: 'debug'    # must be: debug, info, warning, error, critical
+  file_log_level: 'debug'
+  console_log_level: 'info'

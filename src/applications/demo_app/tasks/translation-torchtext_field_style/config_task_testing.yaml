@@ -1,0 +1,24 @@
+net_structure:
+  dataset:
+    src_test_file: 'for_translation/use_static_bert/1000_en.txt'
+    tgt_test_file: 'for_translation/use_static_bert/1000_zh.txt'
+  saved_model_file: 'model_epoch_000_loss_7.65086_bleu_0.00000_20220311205448.pt'
+  tokenizer:
+    src_tokenizer: 'tokenize_en_byJieba'
+    tgt_tokenizer: 'tokenize_zh_byJieba'
+  evaluator: 'bleu'
+
+testing:
+  #batch_size: 1    # must set to 1
+  batch_interval_for_log: 1
+
+logging:
+  sys_log_level: 'debug'    # must be: debug, info, warning, error, critical
+  file_log_level: 'debug'
+  console_log_level: 'info'
+
+#以下是预留键，不要填写东西。
+model_state_dict:
+model_config:
+model_vocab:
+symbol_config:

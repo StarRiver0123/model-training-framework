@@ -1,66 +1,59 @@
-import numpy as np
 import torch.nn.functional as F
-from src.utilities.load_data import *
 from src.modules.trainer.trainer_framework import Trainer
 import os, sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from build_dataset import *
-from build_model import TrainingModel
+from build_model import *
 # from src.applications.demo_app.tasks.ner.build_dataset import *
 # from src.applications.demo_app.tasks.ner.build_model import NERModel
 
 
 def train_model(config):
-    # step 1: build dataset and vocab
-    train_iter, valid_iter, src_field, tgt_field = build_train_dataset_and_vocab_pipeline(config)
+    # step 1: build dataset and vocab, vectors...
+    train_iter, valid_iter = build_train_dataset_and_vocab_pipeline(config)
     # step 2: build model
     used_model = config['net_structure']['model']
     use_bert = config['model'][used_model]['use_bert']
+    transforming_key = eval(config['train_text_transforming_adaptor'][used_model]['input_seqs'])[1]
     if not use_bert:
-        word_vectors = src_field.vocab.vectors
+        word_vectors = config['vector_config'][transforming_key]
     else:
         word_vectors = None
     model = TrainingModel(config, word_vectors)
     # step 3: get the trainer
     trainer = Trainer(config)
     # step 4: start train
-    # special_token_ids = [config['symbol_config']['tgt_sos_token'], config['symbol_config']['tgt_eos_token'], config['symbol_config']['tgt_pad_token'], config['symbol_config']['tgt_unk_token']]
-    special_token_ids = [config['symbol_config']['tgt_pad_token']]
-    labels = [tag for tag in list(tgt_field.vocab.stoi.values()) if tag not in special_token_ids]
+    transforming_key = eval(config['train_text_transforming_adaptor'][used_model]['ner_labels'])[1]
+    tgt_sos_idx = config['symbol_config'][transforming_key]['sos_idx']
+    tgt_eos_idx = config['symbol_config'][transforming_key]['eos_idx']
+    tgt_unk_idx = config['symbol_config'][transforming_key]['unk_idx']
+    tgt_pad_idx = config['symbol_config'][transforming_key]['pad_idx']
+    special_token_ids = [tgt_sos_idx, tgt_eos_idx, tgt_unk_idx, tgt_pad_idx]
+    labels = [tag for tag in list(config['vocab_config'][transforming_key].get_stoi().values()) if tag not in special_token_ids]
     trainer.train(model=model, train_iter=train_iter,
                   compute_predict_loss_func=compute_predict_loss,
-                  compute_predict_loss_outer_params={
-                      'source_field': src_field, 'target_field': tgt_field},
+                  compute_predict_loss_outer_params={'pad_idx': tgt_pad_idx},
                   valid_iter=valid_iter, compute_predict_evaluation_func=compute_predict_evaluation,
-                  compute_predict_evaluation_outer_params={
-                      'source_field': src_field, 'target_field': tgt_field, 'labels': labels}, save_model_state_func=save_model_state_func,
+                  compute_predict_evaluation_outer_params={'pad_idx': tgt_pad_idx, 'labels': labels},
+                  save_model_state_func=save_model_state_func,
                   save_model_state_outer_params={})
 
 
 # this function needs to be defined from the view of concrete task
-def compute_predict_loss(model, data_example, max_len, device, do_log, log_string_list, source_field, target_field):
+def compute_predict_loss(model, data_example, max_len, device, do_log, log_string_list, pad_idx):
     # model, data_example, device, do_log, log_string_list are from inner trainer framework
     # output: predict: N,L,D,  target: N,L
-    pad_idx = target_field.vocab.stoi[target_field.pad_token]
-    # unk_idx = target_field.vocab.stoi[target_field.unk_token]
-    # sos_idx = target_field.vocab.stoi[target_field.init_token]
-    # eos_idx = target_field.vocab.stoi[target_field.eos_token]
-    # O_idx = target_field.vocab.stoi['O']
-    if data_example.Source.size(1) > max_len:
-        source = data_example.Source[:, :max_len].to(device)
+    if data_example[0].size(1) > max_len:
+        source = data_example[0][:, :max_len].to(device)
     else:
-        source = data_example.Source.to(device)
-    if data_example.Target.size(1) > max_len:
-        target = data_example.Target[:, :max_len].to(device)
+        source = data_example[0].to(device)
+    if data_example[1].size(1) > max_len:
+        target = data_example[1][:, :max_len].to(device)
     else:
-        target = data_example.Target.to(device)
+        target = data_example[1].to(device)
 
     emission = model.model.emit(seq_input=source)  # emission是3维：N,L,D
-    # mask1 = ((target != pad_idx) * (target != unk_idx) * (target != sos_idx) * (target != eos_idx) * (target != O_idx)).byte()   # 屏蔽pad,unk,sos,eos对loss的影响, 并加大正例tag的权重
-    # mask2 = (target == O_idx).byte()
-    # mask3 = ((target == unk_idx) + (target == sos_idx) + (target == eos_idx)).byte() * 2
-    # mask = (mask1 + mask2).to(device)
-    # mask = (target != target_field.vocab.stoi[target_field.pad_token]).byte().to(device)   # 屏蔽pad对loss的影响
+
     if model.criterion == 'crf':
         mask = (target != pad_idx).byte()
         loss = -model.model.crf(emissions=emission, tags=target, mask=mask, reduction='token_mean')
@@ -93,27 +86,18 @@ def compute_predict_loss(model, data_example, max_len, device, do_log, log_strin
 
 
 # this function needs to be defined from the view of concrete task
-def compute_predict_evaluation(model, data_example, max_len, device, do_log, log_string_list, source_field, target_field, labels):
+def compute_predict_evaluation(model, data_example, max_len, device, do_log, log_string_list, pad_idx, labels):
     # model, data_example, device, do_log, log_string_list are from inner trainer framework
     # output: predict: N,L,D,  target: N,L
-    pad_idx = target_field.vocab.stoi[target_field.pad_token]
-    # unk_idx = target_field.vocab.stoi[target_field.unk_token]
-    # sos_idx = target_field.vocab.stoi[target_field.init_token]
-    # eos_idx = target_field.vocab.stoi[target_field.eos_token]
-    # O_idx = target_field.vocab.stoi['O']
-    if data_example.Source.size(1) > max_len:
-        source = data_example.Source[:, :max_len].to(device)
+    if data_example[0].size(1) > max_len:
+        source = data_example[0][:, :max_len].to(device)
     else:
-        source = data_example.Source.to(device)
-    if data_example.Target.size(1) > max_len:
-        target = data_example.Target[:, :max_len].to(device)
+        source = data_example[0].to(device)
+    if data_example[1].size(1) > max_len:
+        target = data_example[1][:, :max_len].to(device)
     else:
-        target = data_example.Target.to(device)
+        target = data_example[1].to(device)
     emission = model.model.emit(seq_input=source)
-    # mask1 = ((target != pad_idx) * (target != unk_idx) * (target != sos_idx) * (target != eos_idx) * (target != O_idx)).byte() * 10  # 屏蔽pad,unk,sos,eos对loss的影响, 并加大正例tag的权重
-    # mask2 = (target == O_idx).byte()
-    # mask = (mask1 + mask2).to(device)
-    # mask = (target != target_field.vocab.stoi[target_field.pad_token]).byte().to(device)
     mask = (target != pad_idx).byte()
     predict = model.model.crf.decode(emission, mask=mask)
     predict_flattened = []
@@ -134,12 +118,11 @@ def compute_predict_evaluation(model, data_example, max_len, device, do_log, log
     return predict, target, evaluation
 
 
-
 def save_model_state_func(model, config):
     # model is from inner trainer framework,
     model_state_dict = model.model.state_dict()
-    model_vocab = config['model_vocab']
     model_config = config['model_config']
+    vocab_config = config['vocab_config']
     symbol_config = config['symbol_config']
-    return {'model_state_dict': model_state_dict, 'model_vocab': model_vocab, 'model_config': model_config, 'symbol_config': symbol_config}
+    return {'model_state_dict': model_state_dict, 'model_config': model_config, 'vocab_config': vocab_config, 'symbol_config': symbol_config}
 

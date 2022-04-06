@@ -16,16 +16,18 @@ def apply_model(config):
     # step 2: create model
     model = create_inference_model(config)
     # step 3: load vocab
-    src_vocab_stoi = config['model_vocab']['src_vocab_stoi']
-    src_vocab_itos = config['model_vocab']['src_vocab_itos']
-    tgt_vocab_stoi = config['model_vocab']['tgt_vocab_stoi']
-    tgt_vocab_itos = config['model_vocab']['tgt_vocab_itos']
-    sos_token = config['symbol_config']['sos_token']
-    eos_token = config['symbol_config']['eos_token']
-    sos_idx = config['symbol_config']['sos_idx']
-    eos_idx = config['symbol_config']['eos_idx']
+    used_model = config['model_config']['model_name']
+    src_transforming_key = eval(config['test_text_transforming_adaptor'][used_model]['source_seqs'])[1]
+    src_vocab_stoi = config['vocab_config'][src_transforming_key]
+    src_vocab_itos = config['vocab_config'][src_transforming_key].get_itos()
+    tgt_transforming_key = eval(config['test_text_transforming_adaptor'][used_model]['target_seqs'])[1]
+    tgt_vocab_stoi = config['vocab_config'][tgt_transforming_key]
+    tgt_vocab_itos = config['vocab_config'][tgt_transforming_key].get_itos()
+    sos_idx = config['symbol_config'][tgt_transforming_key]['sos_idx']
+    eos_idx = config['symbol_config'][tgt_transforming_key]['eos_idx']
+
     # step 4: create tokenizer
-    tokenizer_name = config['net_structure']['tokenizer']['src_tokenizer']
+    tokenizer_name = 'tokenize_en_byJieba'
     module_obj = sys.modules[tokenizer_package_path]
     tokenizer = getattr(module_obj, tokenizer_name)
     # step 5: start main process

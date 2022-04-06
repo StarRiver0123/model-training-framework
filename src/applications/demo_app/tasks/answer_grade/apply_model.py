@@ -18,17 +18,18 @@ def apply_model(config):
     # step 2': create evaluator if required
     evaluator = create_evaluator(config)
     # step 3: load vocab
-    text_vocab_stoi = config['model_vocab']['vocab_stoi']
-    text_vocab_itos = config['model_vocab']['vocab_itos']
+    used_model = config['model_config']['model_name']
+    transforming_key = eval(config['test_text_transforming_adaptor'][used_model]['question_seqs'])[1]
+    vocab = config['vocab_config'][transforming_key]
     # step 4: create tokenizer
     use_bert = config['model_config']['use_bert']
     if not use_bert:
         module_obj = sys.modules[tokenizer_package_path]
-        tokenizer_name = config['net_structure']['tokenizer']
+        tokenizer_name = 'tokenize_en_byJieba'
         tokenizer = getattr(module_obj, tokenizer_name)
     else:
         bert_model_root = config['bert_model_root']
-        bert_model_file = bert_model_root + os.path.sep + config['net_structure']['bert_model']['bert_model_file']
+        bert_model_file = bert_model_root + os.path.sep + config['net_structure']['pretrained_bert_model_file']
         tokenizer = BertTokenizer.from_pretrained(bert_model_file).encode
     # step 5: start main process
     while 1:
@@ -42,8 +43,8 @@ def apply_model(config):
         print('\n')
         # step 5-2: get the token ids
         if not use_bert:
-            input_q = [text_vocab_stoi[word] for word in tokenizer(input_q)]
-            input_a = [text_vocab_stoi[word] for word in tokenizer(input_a)]
+            input_q = [vocab.get_stoi()[word] for word in tokenizer(input_q)]
+            input_a = [vocab.get_stoi()[word] for word in tokenizer(input_a)]
         else:
             input_q = tokenizer(input_q)
             input_a = tokenizer(input_a)
@@ -56,8 +57,8 @@ def apply_model(config):
         with torch.no_grad():
             source_vector, target_vector = model(source, target)
             similarity = evaluator(source_vector, target_vector)
-            print("Source string:  " + ' '.join(text_vocab_itos[index] for index in source[0]))
-            print("Target string:  " + ' '.join(text_vocab_itos[index] for index in target[0]))
+            print("Source string:  " + ' '.join(vocab.get_itos()[index] for index in source[0]))
+            print("Target string:  " + ' '.join(vocab.get_itos()[index] for index in target[0]))
             print(f"相似度评分:  {similarity: 0.3f}")
 
 

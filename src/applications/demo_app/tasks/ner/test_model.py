@@ -1,13 +1,8 @@
-import torch
-import numpy as np
-import importlib
-import torch.nn.functional as F
-from src.modules.models.base_component import gen_pad_only_mask, gen_seq_only_mask
 from src.modules.tester.tester_framework import Tester
 import os, sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from build_dataset import *
-from build_model import TestingModel
+from build_model import *
 
 
 def test_model(config):
@@ -15,33 +10,40 @@ def test_model(config):
     load_model_states_into_config(config)
     # step 2: get the tester
     tester = Tester(config)
-    # step 3: get the data iterator and field
-    test_iter, src_field, tgt_field = build_test_dataset_pipeline(config)
-    # step 4: get the model and update config
-    model, _, _ = load_model_and_vocab(config, src_field, tgt_field)
+    # step 3: get the data iterator
+    test_iter = build_test_dataset_pipeline(config)
+    # step 4: get the model
+    model = load_model_and_vocab(config)
     # step 5: start test
-    special_token_ids = [config['symbol_config']['tgt_pad_token']]
-    labels = [tag for tag in list(tgt_field.vocab.stoi.values()) if tag not in special_token_ids]
+    used_model = config['model_config']['model_name']
+    transforming_key = eval(config['test_text_transforming_adaptor'][used_model]['ner_labels'])[1]
+    tgt_sos_idx = config['symbol_config'][transforming_key]['sos_idx']
+    tgt_eos_idx = config['symbol_config'][transforming_key]['eos_idx']
+    tgt_unk_idx = config['symbol_config'][transforming_key]['unk_idx']
+    tgt_pad_idx = config['symbol_config'][transforming_key]['pad_idx']
+    special_token_ids = [tgt_sos_idx, tgt_eos_idx, tgt_unk_idx, tgt_pad_idx]
+    labels = [tag for tag in list(config['vocab_config'][transforming_key].get_stoi().values()) if
+              tag not in special_token_ids]
     tester.test(model=model, test_iter=test_iter,
                   compute_predict_evaluation_func=compute_predict_evaluation,
-                  compute_predict_evaluation_outer_params={
-                      'source_field': src_field, 'target_field': tgt_field, 'labels': labels})
+                  compute_predict_evaluation_outer_params={'pad_idx': tgt_pad_idx, 'labels': labels})
+
 
 
 # this function needs to be defined from the view of concrete task
-def compute_predict_evaluation(model, data_example, max_len, device, do_log, log_string_list, source_field, target_field, labels):
+def compute_predict_evaluation(model, data_example, max_len, device, do_log, log_string_list, pad_idx, labels):
     # model, data_example, device, do_log, log_string_list are from inner tester framework
     # output: predict: N,L,D,  target: N,L
-    if data_example.Source.size(1) > max_len:
-        source = data_example.Source[:, :max_len].to(device)
+    if data_example[0].size(1) > max_len:
+        source = data_example[0][:, :max_len].to(device)
     else:
-        source = data_example.Source.to(device)
-    if data_example.Target.size(1) > max_len:
-        target = data_example.Target[:, :max_len].to(device)
+        source = data_example[0].to(device)
+    if data_example[1].size(1) > max_len:
+        target = data_example[1][:, :max_len].to(device)
     else:
-        target = data_example.Target.to(device)
+        target = data_example[1].to(device)
     emission = model.model.emit(seq_input=source)
-    mask = (target != target_field.vocab.stoi[target_field.pad_token]).byte().to(device)
+    mask = (target != pad_idx).byte().to(device)
     predict = model.model.crf.decode(emission, mask=mask)
     predict_flattened = np.array(predict).reshape(-1).tolist()
     target_flattened = target.reshape(-1).to('cpu').tolist()
@@ -60,19 +62,11 @@ def compute_predict_evaluation(model, data_example, max_len, device, do_log, log
     return predict, target, evaluation
 
 
-def load_model_and_vocab(config, src_field=None, tgt_field=None):
+def load_model_and_vocab(config):
     model_state_dict = config['model_state_dict']
     model = TestingModel(config)
     model.model.load_state_dict(model_state_dict)
-    use_bert = config['model_config']['use_bert']
-    if not use_bert:
-        src_vocab_stoi = config['model_vocab']['src_vocab_stoi']
-        src_vocab_itos = config['model_vocab']['src_vocab_itos']
-        build_field_vocab_special_tokens(src_field, src_vocab_stoi, src_vocab_itos)
-    tgt_vocab_stoi = config['model_vocab']['tgt_vocab_stoi']
-    tgt_vocab_itos = config['model_vocab']['tgt_vocab_itos']
-    build_field_vocab_special_tokens(tgt_field, tgt_vocab_stoi, tgt_vocab_itos)
-    return model, tgt_vocab_stoi, tgt_vocab_itos
+    return model
 
 
 def load_model_states_into_config(config):

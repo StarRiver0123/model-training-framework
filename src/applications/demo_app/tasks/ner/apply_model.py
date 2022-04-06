@@ -19,21 +19,20 @@ def apply_model(config):
     # step 2: create model
     model = create_inference_model(config)
     # step 3: load vocab
-    use_bert = config['model_config']['use_bert']
-    if not use_bert:
-        src_vocab_stoi = config['model_vocab']['src_vocab_stoi']
-        src_vocab_itos = config['model_vocab']['src_vocab_itos']
-    else:
-        src_vocab_stoi = None
-        src_vocab_itos = None
-    tgt_vocab_stoi = config['model_vocab']['tgt_vocab_stoi']
-    tgt_vocab_itos = config['model_vocab']['tgt_vocab_itos']
-    src_sos_idx = config['symbol_config']['src_sos_idx']
-    src_eos_idx = config['symbol_config']['src_eos_idx']
+    used_model = config['model_config']['model_name']
+    src_transforming_key = eval(config['test_text_transforming_adaptor'][used_model]['input_seqs'])[1]
+    src_sos_idx = config['symbol_config'][src_transforming_key]['sos_idx']
+    src_eos_idx = config['symbol_config'][src_transforming_key]['eos_idx']
+    src_vocab_stoi = config['vocab_config'][src_transforming_key]
+    src_vocab_itos = config['vocab_config'][src_transforming_key].get_itos()
+    tgt_transforming_key = eval(config['test_text_transforming_adaptor'][used_model]['ner_labels'])[1]
+    tgt_vocab_stoi = config['vocab_config'][tgt_transforming_key]
+    tgt_vocab_itos = config['vocab_config'][tgt_transforming_key].get_itos()
     # step 4: create tokenizer
+    use_bert = config['model_config']['use_bert']
     if use_bert:
         bert_model_root = config['bert_model_root']
-        bert_model_file = bert_model_root + os.path.sep + config['net_structure']['bert_model_file']
+        bert_model_file = bert_model_root + os.path.sep + config['net_structure']['pretrained_bert_model_file']
         tokenizer = BertTokenizer.from_pretrained(bert_model_file)
     else:
         tokenizer = "list"
@@ -65,7 +64,6 @@ def apply_model(config):
             print("发现目标: \n" + found_out + '\n')
             print("确认结果: \n" + confirmed + '\n')
             print("疑似结果: \n" + suspected + '\n')
-
 
 
 # this function needs to be defined from the view of concrete task

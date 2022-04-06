@@ -32,7 +32,8 @@ def get_config_from_yamls(project_root, arg_file_root):
 def get_txt_from_file(file, encoding='utf-8'):
     data_set = []
     with open(file, "r", encoding=encoding) as f:
-        data_set = f.readlines()
+        for line in f:
+            data_set.append(line.strip())
     return data_set
 
 
@@ -124,58 +125,58 @@ def build_examples(data_tuple, source_field, target_field, is_train=True, num_wo
 #                 examples.append(dt.Example.fromlist([source, None], fields))
 #         super().__init__(examples, fields)
 
-
-class build_triplet_examples(dt.Dataset):
-    def __init__(self, data_tuple, source_field, target_field, negative_field, is_train=True):
-        fields = [("Source", source_field), ("Target", target_field), ("Negative", negative_field)]
-        examples = []
-        data_len = len(data_tuple)
-        if is_train:
-            # examples = [dt.Example.fromlist(data_pair, fields) for data_pair in tqdm(data_tuple)]
-            for idx, (source, target) in tqdm(enumerate(data_tuple)):
-                i = random.randint(0, data_len - 1)
-                while data_tuple[i][0] == source:
-                    i = random.randint(0, data_len - 1)
-                examples.append(dt.Example.fromlist([source, target, data_tuple[i][1]], fields))
-        else:
-            for source, target in tqdm(data_tuple):
-                examples.append(dt.Example.fromlist([source, None], fields))
-        super().__init__(examples, fields)
-
-
-
-def build_field_vocab_special_tokens_from_bert_tokenizer(field, tokenizer):
-    field.build_vocab()
-    field.vocab.stoi.clear()
-    field.vocab.stoi.update(tokenizer.vocab)
-    field.vocab.itos.clear()
-    field.vocab.itos.extend(tokenizer.vocab.keys())
-    field.vocab.stoi.default_factory = type(0)
-    # 创建vocab时由于没有指定unk_token，则stoi的defaultdict类型缺少了default_factory, 从而跟普通dict没有区别，需要重新设置default_factory.
-    # 四个特殊的token不能直接写到filed对象的定义里，那样会使得build_vocab时vocab增加四个值从而跟vector不匹配。但是又不能不写到field的属性里去。不写的话会给数据集的处理带来问题。所以只能写到这里。
-    # 本函数中特殊字符赋值应该在build_vocab之后。特殊字符已经在模型词典中
-    field.init_token = tokenizer.cls_token
-    field.eos_token = tokenizer.sep_token
-    field.unk_token = tokenizer.unk_token
-    field.pad_token = tokenizer.pad_token
-
-
-def build_field_vocab_special_tokens(field, stoi, itos, sos_token=None, eos_token=None, pad_token=None, unk_token=None):
-    field.build_vocab()
-    field.vocab.stoi.clear()
-    field.vocab.stoi.update(stoi)
-    field.vocab.itos.clear()
-    field.vocab.itos.extend(itos)
-    field.vocab.stoi.default_factory = type(0)
-    # 创建vocab时由于没有指定unk_token，则stoi的defaultdict类型缺少了default_factory, 从而跟普通dict没有区别，需要重新设置default_factory.
-    # 四个特殊的token不能直接写到filed对象的定义里，在运行build_vocab之前不能存在于那样会使得build_vocab时vocab增加四个值从而跟vector不匹配。但是又不能不写到field的属性里去。不写的话会给数据集的处理带来问题。所以只能写到这里。
-    # 本函数中特殊字符赋值应该在build_vocab之后。特殊字符已经在词典中
-    if sos_token is not None:
-        field.init_token = sos_token
-    if eos_token is not None:
-        field.eos_token = eos_token
-    if pad_token is not None:
-        field.pad_token = pad_token
-    if unk_token is not None:
-        field.unk_token = unk_token
+#
+# class build_triplet_examples(dt.Dataset):
+#     def __init__(self, data_tuple, source_field, target_field, negative_field, is_train=True):
+#         fields = [("Source", source_field), ("Target", target_field), ("Negative", negative_field)]
+#         examples = []
+#         data_len = len(data_tuple)
+#         if is_train:
+#             # examples = [dt.Example.fromlist(data_pair, fields) for data_pair in tqdm(data_tuple)]
+#             for idx, (source, target) in tqdm(enumerate(data_tuple)):
+#                 i = random.randint(0, data_len - 1)
+#                 while data_tuple[i][0] == source:
+#                     i = random.randint(0, data_len - 1)
+#                 examples.append(dt.Example.fromlist([source, target, data_tuple[i][1]], fields))
+#         else:
+#             for source, target in tqdm(data_tuple):
+#                 examples.append(dt.Example.fromlist([source, None], fields))
+#         super().__init__(examples, fields)
+#
+#
+#
+# def build_field_vocab_special_tokens_from_bert_tokenizer(field, tokenizer):
+#     field.build_vocab()
+#     field.vocab.stoi.clear()
+#     field.vocab.stoi.update(tokenizer.vocab)
+#     field.vocab.itos.clear()
+#     field.vocab.itos.extend(tokenizer.vocab.keys())
+#     field.vocab.stoi.default_factory = type(0)
+#     # 创建vocab时由于没有指定unk_token，则stoi的defaultdict类型缺少了default_factory, 从而跟普通dict没有区别，需要重新设置default_factory.
+#     # 四个特殊的token不能直接写到filed对象的定义里，那样会使得build_vocab时vocab增加四个值从而跟vector不匹配。但是又不能不写到field的属性里去。不写的话会给数据集的处理带来问题。所以只能写到这里。
+#     # 本函数中特殊字符赋值应该在build_vocab之后。特殊字符已经在模型词典中
+#     field.init_token = tokenizer.cls_token
+#     field.eos_token = tokenizer.sep_token
+#     field.unk_token = tokenizer.unk_token
+#     field.pad_token = tokenizer.pad_token
+#
+#
+# def build_field_vocab_special_tokens(field, stoi, itos, sos_token=None, eos_token=None, pad_token=None, unk_token=None):
+#     field.build_vocab()
+#     field.vocab.stoi.clear()
+#     field.vocab.stoi.update(stoi)
+#     field.vocab.itos.clear()
+#     field.vocab.itos.extend(itos)
+#     field.vocab.stoi.default_factory = type(0)
+#     # 创建vocab时由于没有指定unk_token，则stoi的defaultdict类型缺少了default_factory, 从而跟普通dict没有区别，需要重新设置default_factory.
+#     # 四个特殊的token不能直接写到filed对象的定义里，在运行build_vocab之前不能存在于那样会使得build_vocab时vocab增加四个值从而跟vector不匹配。但是又不能不写到field的属性里去。不写的话会给数据集的处理带来问题。所以只能写到这里。
+#     # 本函数中特殊字符赋值应该在build_vocab之后。特殊字符已经在词典中
+#     if sos_token is not None:
+#         field.init_token = sos_token
+#     if eos_token is not None:
+#         field.eos_token = eos_token
+#     if pad_token is not None:
+#         field.pad_token = pad_token
+#     if unk_token is not None:
+#         field.unk_token = unk_token
 

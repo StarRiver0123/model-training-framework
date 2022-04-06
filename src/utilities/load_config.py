@@ -7,18 +7,19 @@ from src.utilities.load_data import get_config
 
 # will be called by run.py in the project root, to load all config.
 def load_config(config_root_file, config_deploy_file=None):
-    project_root = os.path.dirname(os.path.dirname(os.path.abspath(src.__file__))).strip('/')
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(src.__file__))).rstrip('/')
     config_project_file = project_root + os.path.sep + config_root_file
     config = get_config(config_project_file)
     app_root = project_root + os.path.sep + config['app_root'].strip('/') + os.path.sep + config['running_app']
     task_root = app_root + os.path.sep + config['task_root'].strip('/') + os.path.sep + config['running_task']
+    resource_root = project_root + os.path.sep + config['resource_root'].strip('/')
     dataset_root = project_root + os.path.sep + config['dataset_root'].strip('/')
     bert_model_root = project_root + os.path.sep + config['bert_model_root'].strip('/')
     word_vector_root = project_root + os.path.sep + config['word_vector_root'].strip('/')
     log_root = project_root + os.path.sep + config['log_root'].strip('/') + os.path.sep + config['running_app'] + os.path.sep + config['running_task']
     check_point_root = project_root + os.path.sep + config['check_point_root'].strip('/') + os.path.sep + config['running_app'] + os.path.sep + config['running_task']
     running_step = config['running_step']
-    if running_step in ['preprocess', 'train_model']:
+    if running_step in ['preprocess', 'train_model', 'distil_model']:
         config_task_file = task_root + os.path.sep + config['training_config_file']
     elif running_step in ['test_model', 'apply_model']:
         config_task_file = task_root + os.path.sep + config['testing_config_file']
@@ -49,7 +50,7 @@ def load_config(config_root_file, config_deploy_file=None):
 
 
 def create_deploy_folders(config_root_file, running_app):
-    project_root = os.path.dirname(os.path.dirname(os.path.abspath(src.__file__))).strip('/')
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(src.__file__))).rstrip('/')
     config_deploy_file = project_root + os.path.sep + config_root_file
     config = get_config(config_deploy_file)
     deploy_root = project_root + os.path.sep + config['deploy_root'].strip('/')

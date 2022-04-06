@@ -1,15 +1,17 @@
 import torch
 from transformers import BertTokenizer, BertModel, BertConfig
+from dataclasses import dataclass
 from src.utilities.load_data import *
 import sys
 
-model_name_zh = 'G:\\AI\\projects\\mtf_projects\\dataset\\bert_model\\chinese-bert-wwm-ext'
+model_name_zh = 'G:\\AI\\projects\\mtf_projects\\resources\\bert_models\\bert-wwm-ext-chinese'
 tokenizer_zh = BertTokenizer.from_pretrained(model_name_zh)
-# model_zh = BertModel.from_pretrained(model_name_zh)
+model_zh = BertModel.from_pretrained(model_name_zh)
 ids_zh = tokenizer_zh('浙商银行企业信贷部叶老桂博士则从另一个角度对五道门槛进行了解读。叶老桂认为，对目前国内商业银行而言，', return_tensors='pt', padding=True)
 print(ids_zh)
-# with torch.no_grad():
-#     outs_zh = model_zh(**ids_zh)
+with torch.no_grad():
+    outs_zh = model_zh(**ids_zh)
+print('ok')
 # vector1 = outs_zh.last_hidden_state[0, 1]
 # print(vector1[:10])
 #

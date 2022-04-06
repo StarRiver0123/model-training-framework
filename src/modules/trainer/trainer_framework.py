@@ -4,15 +4,16 @@ import time
 import sys
 import torch.nn as nn
 from src.utilities.create_logger import create_logger
+from src.modules.optimizers.lr_scheduler import *
 
 # this is a training framework
 # the callback function epoch_train and epoch_validate need to be implemented in task train codes.
 class Trainer():
     def __init__(self, config):
         self.config = config
-        self.used_model = config['net_structure']['model']
+        self.used_model = config['model_config']['model_name']
         self.used_evaluator = config['net_structure']['evaluator']
-        self.max_len = config['model'][self.used_model]['max_len']
+        self.max_len = config['model_config']['max_len']
         self.epochs = config['training']['epochs']
         self.batch_size = config['training']['batch_size']
         self.batch_interval_for_log = config['training']['batch_interval_for_log']
@@ -25,6 +26,7 @@ class Trainer():
         self.logger = config['logger']
         self.max_norm = config['training']['max_norm']
         self.resume_from_check_point = config['training']['resume_from_check_point']
+        self.full_resume = config['training']['full_resume']
         self.model_check_point_file = config['training']['model_check_point_file']
         self.save_check_point = config['training']['save_check_point']
         self.check_point_epoch_step = config['training']['check_point_epoch_step']
@@ -36,13 +38,11 @@ class Trainer():
         if self.resume_from_check_point:
             model_file_path = self.model_save_root + os.path.sep + self.model_check_point_file
             check_point = torch.load(model_file_path)
-            start_epoch = check_point['epoch'] + 1
             model.model.load_state_dict(check_point['model'])
-            check_point['model'] = None
-            model.optimizer.load_state_dict(check_point['optimizer'])
-            check_point['optimizer'] = None
-            model.lr_scheduler.load_state_dict(check_point['lr_scheduler'])
-            check_point['lr_scheduler'] = None
+            if self.full_resume:
+                start_epoch = check_point['epoch'] + 1
+                model.optimizer.load_state_dict(check_point['optimizer'])
+                model.lr_scheduler.load_state_dict(check_point['lr_scheduler'])
             del check_point
         for epoch in range(start_epoch, self.epochs):
             epoch_loss = self._epoch_train(model, epoch, train_iter, compute_predict_loss_func, compute_predict_loss_outer_params)
@@ -63,8 +63,8 @@ class Trainer():
         total_loss = 0
         mean_loss = 0
         for i, train_example in enumerate(train_iter):
-            if len(train_example) < self.batch_size:      # 相当于pytorch dataloader里使用的drop_last参数
-                continue
+            # if len(train_example[0]) < self.batch_size:      # 相当于pytorch dataloader里使用的drop_last参数
+            #     continue                                     # build_dataset使用torchtext_field与否产生的train_example格式不同，这里还没想好怎么区别处理
             if i % self.batch_interval_for_log == 0:
                 do_log = True
             else:
@@ -76,7 +76,10 @@ class Trainer():
             nn.utils.clip_grad_norm_(parameters=model.model.parameters(), max_norm=self.max_norm)   #梯度裁剪
             model.optimizer.step()
             if model.lr_scheduler is not None:
-                model.lr_scheduler.step()
+                if isinstance(model.lr_scheduler, SelfAdjustingAfterWarmUpLRScheduler):
+                    model.lr_scheduler.step(batch_loss.item())
+                else:
+                    model.lr_scheduler.step()
             total_loss += batch_loss.item()
             mean_loss = total_loss / (i+1)
             if do_log:
@@ -96,8 +99,8 @@ class Trainer():
             total_evaluation = 0
             mean_evaluation = 0
             for i, valid_example in enumerate(valid_iter):
-                if len(valid_example) < self.batch_size:
-                    continue
+                # if len(valid_example) < self.batch_size:
+                #     continue                                    # build_dataset使用torchtext_field与否产生的train_example格式不同，这里还没想好怎么区别处理
                 if i % self.batch_interval_for_log == 0:
                     do_log = True
                 else:
