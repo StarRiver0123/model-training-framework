@@ -10,10 +10,6 @@ from src.modules.tokenizers.tokenizer import *
 tokenizer_package_path = r'src.modules.tokenizers.tokenizer'
 
 
-def clean_data(batch):
-    pass
-
-
 def collate_fn(config, text_transforming_adaptor, batch):
     reshaped_batch = list(zip(*batch))
     batch_list = []
@@ -38,16 +34,34 @@ def collate_fn(config, text_transforming_adaptor, batch):
 def create_transforming_pipeline(config, transforming_key):
     if transforming_key is None or transforming_key == '':
         return None
-    use_tokenizing = config['text_transforming'][transforming_key]['use_tokenizing']
-    use_numericalizing = config['text_transforming'][transforming_key]['use_numericalizing']
+    try:
+        use_tokenizing = config['text_transforming'][transforming_key]['use_tokenizing']
+    except KeyError:
+        use_tokenizing = False
+    try:
+        use_stopwords = config['text_transforming'][transforming_key]['use_stopwords']
+    except KeyError:
+        use_stopwords = False
+    try:
+        use_numericalizing = config['text_transforming'][transforming_key]['use_numericalizing']
+    except KeyError:
+        use_numericalizing = False
     try:
         use_start_end_symbol = config['text_transforming'][transforming_key]['use_start_end_symbol']
     except KeyError:
         use_start_end_symbol = False
-    use_bert_style = config['text_transforming'][transforming_key]['use_bert_style']
+    try:
+        use_bert_style = config['text_transforming'][transforming_key]['use_bert_style']
+    except KeyError:
+        use_bert_style = False
     pipeline = []
     if use_tokenizing:
         pipeline.append(config['tokenizer_config'][transforming_key])
+    if use_stopwords:
+        stopwords_file = config['stopwords_root'] + os.path.sep + config['text_transforming'][transforming_key]['stopwords_file']
+        stopwords = get_txt_from_file(stopwords_file)
+        remove_stopwords = partial(_remove_stopwords, stopwords, config['symbol_config'][transforming_key]['unk_token'])
+        pipeline.append(remove_stopwords)
     if use_numericalizing:
         pipeline.append(config['vocab_config'][transforming_key])
     if use_bert_style or use_start_end_symbol:
@@ -62,14 +76,21 @@ def create_transforming_pipeline(config, transforming_key):
     return None
 
 
-def _add_start_end_symbol(sos_idx, eos_idx, batch):
+def _remove_stopwords(stopwords, unk_token, words):
+    filtered_words = [word for word in words if word not in stopwords]
+    if len(filtered_words) == 0:
+        filtered_words = [unk_token]
+    return filtered_words
+
+
+def _add_start_end_symbol(sos_idx, eos_idx, seqs):
     return torch.cat((torch.tensor([sos_idx]),
-                     torch.tensor(batch),
+                     torch.tensor(seqs),
                      torch.tensor([eos_idx])))
 
 
-def to_tensor(batch):
-    return torch.tensor(batch)
+def to_tensor(seqs):
+    return torch.tensor(seqs)
 
 
 def sequential_transforms(*transforms):
@@ -176,10 +197,16 @@ def build_vectors_from_pretrained_into_config(config, train_text_transforming_ad
     for text_field_idx, transforming_key in train_text_transforming_adaptor:
         if transforming_key is None or transforming_key == '':
             continue
-        use_bert_style = config['text_transforming'][transforming_key]['use_bert_style']
+        try:
+            use_bert_style = config['text_transforming'][transforming_key]['use_bert_style']
+        except KeyError:
+            use_bert_style = False
         if use_bert_style:
             continue
-        use_pretrained_word_vector = config['text_transforming'][transforming_key]['use_pretrained_word_vector']
+        try:
+            use_pretrained_word_vector = config['text_transforming'][transforming_key]['use_pretrained_word_vector']
+        except KeyError:
+            use_pretrained_word_vector = False
         if not use_pretrained_word_vector:
             continue
         vector_file = config['word_vector_root'] + os.path.sep + config['text_transforming'][transforming_key]['pretrained_word_vector_file']
@@ -202,40 +229,41 @@ def build_special_tokens_into_config(config, train_text_transforming_adaptor):
             use_start_end_symbol = config['text_transforming'][transforming_key]['use_start_end_symbol']
         except KeyError:
             use_start_end_symbol = False
+        config['symbol_config'].update({transforming_key: {}})
         use_bert_style = config['text_transforming'][transforming_key]['use_bert_style']
         if use_bert_style:   # use bert
             bert_model_root = config['bert_model_root']
             bert_model_file = bert_model_root + os.path.sep + config['net_structure']['pretrained_bert_model_file']
             tokenizer = BertTokenizer.from_pretrained(bert_model_file)
-            config['symbol_config'][transforming_key] = {'unk_token': tokenizer.unk_token,
+            config['symbol_config'][transforming_key].update({'unk_token': tokenizer.unk_token,
                                                          'unk_idx': tokenizer.unk_token_id
-                                                          }
+                                                          })
             if use_padding:
-                config['symbol_config'][transforming_key] = {'pad_token': tokenizer.pad_token,
+                config['symbol_config'][transforming_key].update({'pad_token': tokenizer.pad_token,
                                                              'pad_idx': tokenizer.pad_token_id
-                                                             }
+                                                             })
             if use_start_end_symbol:
-                config['symbol_config'][transforming_key] = {'sos_token': tokenizer.cls_token,
+                config['symbol_config'][transforming_key].update({'sos_token': tokenizer.cls_token,
                                                              'eos_token': tokenizer.sep_token,
                                                              'sos_idx': tokenizer.cls_token_id,
                                                              'eos_idx': tokenizer.sep_token_id
-                                                             }
+                                                             })
         else:
             unk_token = config['dataset']['general_symbol']['unk_token']
             vocab = config['vocab_config'][transforming_key]
-            config['symbol_config'][transforming_key] = {'unk_token': unk_token,
+            config['symbol_config'][transforming_key].update({'unk_token': unk_token,
                                                          'unk_idx': vocab.get_stoi()[unk_token]
-                                                         }
+                                                         })
             if use_padding:
                 pad_token = config['dataset']['general_symbol']['pad_token']
-                config['symbol_config'][transforming_key] = {'pad_token': pad_token,
+                config['symbol_config'][transforming_key].update({'pad_token': pad_token,
                                                              'pad_idx': vocab.get_stoi()[pad_token]
-                                                             }
+                                                             })
             if use_start_end_symbol:
                 sos_token = config['dataset']['general_symbol']['sos_token']
                 eos_token = config['dataset']['general_symbol']['eos_token']
-                config['symbol_config'][transforming_key] = {'sos_token': sos_token,
+                config['symbol_config'][transforming_key].update({'sos_token': sos_token,
                                                              'eos_token': eos_token,
                                                              'sos_idx': vocab.get_stoi()[sos_token],
                                                              'eos_idx': vocab.get_stoi()[eos_token]
-                                                             }
+                                                             })

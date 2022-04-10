@@ -3,10 +3,24 @@ from tqdm import tqdm
 # import spacy
 # spacy_tokenizer = spacy.load("en_core_web_sm")
 from sklearn.model_selection import train_test_split
+from src.utilities.clean_data import *
 from src.utilities.load_data import *
 from src.utilities.load_config import load_config
 from src.modules.tokenizers.tokenizer import *
 
+
+clean_config = {
+    'replace_specials': False,
+    'specials_token_replacement': [('\n', '')],
+    'replace_english': False,
+    'english_token_replacement': 'eng',
+    'replace_digits': False,
+    'digits_token_replacement': 'num',
+    'remove_english_punctuation': False,
+    'remove_chinese_punctuation': False,
+    'remove_non_hanzi_english_digits': False,
+    'lower_case': False
+}
 
 def preprocess(config):
     used_model = config['tasks']['model']
@@ -24,26 +38,21 @@ def preprocess(config):
     random_state = config['general']['random_state']
     module_obj = sys.modules['src.utilities.load_data']
 
-
-    # max_lines = 100000
+    # step 1: read the raw data
     data_text_en = []
     data_text_zh = []
     train_json_file = dataset_root + os.path.sep + train_json_file
     valid_json_file = dataset_root + os.path.sep + valid_json_file
-    max_text_len = 0
     with open(train_json_file, 'r', encoding='utf-8') as f:
         json_txt = f.readlines()
     for txt in json_txt:
-        # if len(data_text_en) > max_lines:
-        #     break
         t = json.loads(txt)
         data_text_en.append(t['english'] + '\n')
         data_text_zh.append(t['chinese'] + '\n')
+
     with open(valid_json_file, 'r', encoding='utf-8') as f:
         json_txt = f.readlines()
     for txt in json_txt:
-        # if len(data_text_en) > max_lines:
-        #     break
         t = json.loads(txt)
         data_text_en.append(t['english'] + '\n')
         data_text_zh.append(t['chinese'] + '\n')
@@ -76,23 +85,18 @@ def preprocess(config):
     en_filter = getattr(module_obj, fun_name_en)
     zh_filter = getattr(module_obj, fun_name_zh)
     data_set = []
-    if fun_name_en == 'tokenize_en_bySpacy':
-        for i,text in tqdm(enumerate(data_text_en)):
-            en_len = count_token(text)
-            zh_len = len(zh_filter(data_text_zh[i]))
-            if (en_len > 4) and (en_len < max_len) and (zh_len < max_len):
-                data_set.append((data_text_zh[i], text))
-    else:
-        for i,text in tqdm(enumerate(data_text_en)):
-            en_len = len(en_filter(text))
-            zh_len = len(zh_filter(data_text_zh[i]))
-            if (en_len > 4) and (en_len < max_len) and (zh_len < max_len):
-                data_set.append((data_text_zh[i], text))
+    for i,text in tqdm(enumerate(data_text_en)):
+        en_len = len(en_filter(text))
+        zh_len = len(zh_filter(data_text_zh[i]))
+        if (en_len > 4) and (en_len < max_len) and (zh_len < max_len):
+            data_set.append((data_text_zh[i], text))
     data_set = list(zip(data_text_zh, data_text_en))
+
     print("spliting...")
     train_set, test_set = train_test_split(data_set, test_size=test_size, shuffle=True, random_state=random_state)
     train_zh, train_en = list(zip(*train_set))
     test_zh, test_en = list(zip(*test_set))
+
     print("saving...")
     put_txt_to_file(train_zh, dataset_root + os.path.sep + file_train_zh_file)
     put_txt_to_file(train_en, dataset_root + os.path.sep + file_train_en_file)

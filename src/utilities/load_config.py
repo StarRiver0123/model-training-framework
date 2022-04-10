@@ -16,6 +16,7 @@ def load_config(config_root_file, config_deploy_file=None):
     dataset_root = project_root + os.path.sep + config['dataset_root'].strip('/')
     bert_model_root = project_root + os.path.sep + config['bert_model_root'].strip('/')
     word_vector_root = project_root + os.path.sep + config['word_vector_root'].strip('/')
+    stopwords_root = project_root + os.path.sep + config['stopwords_root'].strip('/')
     log_root = project_root + os.path.sep + config['log_root'].strip('/') + os.path.sep + config['running_app'] + os.path.sep + config['running_task']
     check_point_root = project_root + os.path.sep + config['check_point_root'].strip('/') + os.path.sep + config['running_app'] + os.path.sep + config['running_task']
     running_step = config['running_step']
@@ -38,9 +39,11 @@ def load_config(config_root_file, config_deploy_file=None):
     config.update({'project_root': project_root,
                       'app_root': app_root,
                       'task_root': task_root,
+                      'resource_root': resource_root,
                       'dataset_root': dataset_root,
                       'bert_model_root': bert_model_root,
                       'word_vector_root': word_vector_root,
+                      'stopwords_root': stopwords_root,
                       'log_root': log_root,
                       'check_point_root': check_point_root,
                       'logger': logger})

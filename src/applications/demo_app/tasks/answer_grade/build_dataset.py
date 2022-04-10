@@ -111,9 +111,9 @@ class DatasetGenerator(Dataset):
         if not self.triplet:
             return self.raw_dataset[index][0], self.raw_dataset[index][1]
         else:
-            i = random.randint(0, self.data_len)
+            i = random.randint(0, self.data_len - 1)
             while self.raw_dataset[i][0] == self.raw_dataset[index][0]:
-                i = random.randint(0, self.data_len)
+                i = random.randint(0, self.data_len - 1)
             return self.raw_dataset[index][0], self.raw_dataset[index][1], self.raw_dataset[i][1]
 
     def __len__(self):

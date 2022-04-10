@@ -4,51 +4,14 @@ import json
 import pickle as pk
 import numpy, copy
 import pandas as pd
+from src.utilities.clean_data import *
 from sklearn.model_selection import train_test_split
 from src.utilities.load_data import *
 from src.utilities.load_config import load_config
 
-def count_blank(text):
-    return text.count(' ')
 
-
-def preprocess(config):
-    dataset_root = config['dataset_root']
-    corpus_file = dataset_root + os.path.sep + config['net_structure']['dataset']['corpus_file']
-    train_set_file = dataset_root + os.path.sep + config['net_structure']['dataset']['train_set_file']
-    valid_set_file = dataset_root + os.path.sep + config['net_structure']['dataset']['valid_set_file']
-    test_set_file = dataset_root + os.path.sep + config['net_structure']['dataset']['test_set_file']
-    valid_size = config['net_structure']['dataset']['valid_size']
-    test_size = config['net_structure']['dataset']['test_size']
-    random_state = config['general']['random_state']
-    # corpus = pd.read_csv(corpus_file)
-    # # 统计预料中每句话长度，来确定模型中max_len的合理值.
-    # # corpus['num_blank'] = corpus['text'].apply(count_blank)
-    # # print(corpus['num_blank'].describe(percentiles=[.8, .9, .95, .98]))
-    # corpus = corpus.values[:,[1,0]]
-    # train_set, test_set = train_test_split(corpus, test_size=test_size, shuffle=True, random_state=random_state)
-    # train_set, valid_set = train_test_split(train_set, test_size=valid_size, shuffle=True, random_state=random_state)
-    # train_dataframe = pd.DataFrame(train_set)
-    # valid_dataframe = pd.DataFrame(valid_set)
-    # test_dataframe = pd.DataFrame(test_set)
-    # train_dataframe.to_csv(train_set_file, index=False)
-    # valid_dataframe.to_csv(valid_set_file, index=False)
-    # test_dataframe.to_csv(test_set_file, index=False)
-    train_set = pd.read_csv(train_set_file).values
-    use_data_augmentation = config['net_structure']['dataset']['use_data_augmentation']
-    n_iter = 1
-    if use_data_augmentation:
-        train_augment_set_file = dataset_root + os.path.sep + config['net_structure']['dataset']['train_augment_set_file']
-        train_augment_set = augment_data(train_set, n_iter=n_iter)
-        train_augment_dataframe = pd.DataFrame(train_augment_set)
-        train_augment_dataframe.to_csv(train_augment_set_file, index=False)
-    # put_txt_to_file(train_list, dataset_root + os.path.sep + train_set_file)
-    # put_txt_to_file(valid_list, dataset_root + os.path.sep + valid_set_file)
-    # put_txt_to_file(test_list, dataset_root + os.path.sep + test_set_file)
-    print('ok')
-
-
-def augment_data(data_set, p_mask=0.1, p_pos=0.1, p_ng=0.25, min_size=4, gram_size=8, n_iter=10):
+def task_specified_processing(data_set, p_mask=0.1, p_pos=0.1, p_ng=0.25, min_size=4, gram_size=8, n_iter=10):
+    # 数据增强
     # 可以使用多进程，加快数据处理速度
     import jieba
     import jieba.posseg as pseg
@@ -104,6 +67,65 @@ def augment_data(data_set, p_mask=0.1, p_pos=0.1, p_ng=0.25, min_size=4, gram_si
                         augment_cut += list(augment[idx])
                 augment_set.append([' '.join(augment_cut), data_set[s_id][1]])
     return augment_set
+
+
+clean_config = {
+    'replace_specials': False,
+    'specials_token_replacement': [('\n', '')],
+    'replace_english': False,
+    'english_token_replacement': 'eng',
+    'replace_digits': False,
+    'digits_token_replacement': 'num',
+    'remove_english_punctuation': False,
+    'remove_chinese_punctuation': False,
+    'remove_non_hanzi_english_digits': False,
+    'lower_case': False
+}
+
+
+def preprocess(config):
+    dataset_root = config['dataset_root']
+    corpus_file = dataset_root + os.path.sep + config['net_structure']['dataset']['corpus_file']
+    train_set_file = dataset_root + os.path.sep + config['net_structure']['dataset']['train_set_file']
+    valid_set_file = dataset_root + os.path.sep + config['net_structure']['dataset']['valid_set_file']
+    test_set_file = dataset_root + os.path.sep + config['net_structure']['dataset']['test_set_file']
+    valid_size = config['net_structure']['dataset']['valid_size']
+    test_size = config['net_structure']['dataset']['test_size']
+    random_state = config['general']['random_state']
+
+    # step 1: read the raw data
+    corpus = load_data_from_file(corpus_file, encoding='utf-8')
+    corpus = corpus[:, [1, 0]]
+
+    # step 2: clean the data
+    data_cleaner = DataCleaner(clean_config)
+    text_list = data_cleaner.clean(corpus[:, 0])
+    data_set = list(zip(text_list, corpus[:, 1]))
+
+    # step 3: split the data
+    train_set, test_set = train_test_split(corpus, test_size=test_size, shuffle=True, random_state=random_state)
+    train_set, valid_set = train_test_split(train_set, test_size=valid_size, shuffle=True, random_state=random_state)
+
+    # step 4: some task-specified processing
+    use_data_augmentation = config['net_structure']['dataset']['use_data_augmentation']
+    n_iter = 1
+    if use_data_augmentation:
+        train_augment_set_file = dataset_root + os.path.sep + config['net_structure']['dataset'][
+            'train_augment_set_file']
+        train_augment_set = task_specified_processing(train_set, n_iter=n_iter)
+
+    # step 5: save the data
+    train_dataframe = pd.DataFrame(train_set)
+    valid_dataframe = pd.DataFrame(valid_set)
+    test_dataframe = pd.DataFrame(test_set)
+    train_dataframe.to_csv(train_set_file, index=False)
+    valid_dataframe.to_csv(valid_set_file, index=False)
+    test_dataframe.to_csv(test_set_file, index=False)
+    if use_data_augmentation:
+        train_augment_dataframe = pd.DataFrame(train_augment_set)
+        train_augment_dataframe.to_csv(train_augment_set_file, index=False)
+
+    print('ok')
 
 
 if __name__ == '__main__':

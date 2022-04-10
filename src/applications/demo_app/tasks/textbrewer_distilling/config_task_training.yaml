@@ -52,6 +52,8 @@ text_transforming:    # 不仅限于对文本预料的处理，还可以对目�
     use_tokenizing: !!bool True             # 如果需要序列化，就要配置用什么tokenizer。注意即使模型使用bert，tokenizer也可以不用bert自带的，比如使用split
     tokenizer:                               # 如果use_tokenizing为False，则此设置失效    # bert, spacy, moses, toktok, revtok, subword, basic_english, 自定义的函数
     language:                                # 如果use_tokenizing为False，则此设置失效
+    use_stopwords: !!bool False
+    stopwords_file: stopwords_zh.txt            # 如果use_stopwords为False，则此设置失效
     use_numericalizing: !!bool True          # 如果需要数字化，就需要对应的词典，这个词典要么从预料中统计，要么使用bert的词典
     corpus_field_index_for_vocab_building:   # 如果use_bert_style为True或use_numericalizing为False，则此设置失效    # 必须是单个，或者连续的多个（写成列表切片式）
     use_padding:                             # 如果use_bert_style为True，则此设置失效
@@ -61,6 +63,8 @@ text_transforming:    # 不仅限于对文本预料的处理，还可以对目�
     use_tokenizing: !!bool True             # 如果需要序列化，就要配置用什么tokenizer。注意即使模型使用bert，tokenizer也可以不用bert自带的，比如使用split
     tokenizer:                               # 如果use_tokenizing为False，则此设置失效    # bert, spacy, moses, toktok, revtok, subword, basic_english, 自定义的函数
     language:                                # 如果use_tokenizing为False，则此设置失效
+    use_stopwords: !!bool False
+    stopwords_file: stopwords_zh.txt            # 如果use_stopwords为False，则此设置失效
     use_numericalizing: !!bool True          # 如果需要数字化，就需要对应的词典，这个词典要么从预料中统计，要么使用bert的词典
     corpus_field_index_for_vocab_building: 0 # 如果use_bert_style为True或use_numericalizing为False，则此设置失效    # 必须是单个，或者连续的多个（写成列表切片式）
     use_padding: !!bool True                 # 如果use_bert_style为True，则此设置失效

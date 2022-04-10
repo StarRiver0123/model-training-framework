@@ -1,6 +1,6 @@
 import re, os, random
 from tqdm import tqdm
-import yaml
+import yaml, pandas, json
 import torchtext.legacy.data as dt
 from multiprocessing import cpu_count, Process, Pool
 from transformers import BertTokenizer, BertModel, BertConfig
@@ -29,12 +29,43 @@ def get_config_from_yamls(project_root, arg_file_root):
                 config_paths.append(f_p + os.path.sep + sub_f_p)
     return config
 
+
 def get_txt_from_file(file, encoding='utf-8'):
     data_set = []
     with open(file, "r", encoding=encoding) as f:
         for line in f:
             data_set.append(line.strip())
     return data_set
+
+
+def load_data_from_file(file, encoding='utf-8'):
+    file_type = file.split('.')[-1]
+    if file_type == 'txt':
+        data_set = []
+        with open(file, "r", encoding=encoding) as f:
+            for line in f:
+                data_set.append(line.strip())
+        return data_set
+    elif file_type == 'csv':
+        data_set = pandas.read_csv(file, encoding=encoding).values
+        return data_set
+    elif file_type == 'json':
+        with open(file, 'r', encoding=encoding) as f:
+            json_txt = f.readlines()
+        data_set = []
+        for txt in json_txt:
+            t = json.loads(txt)
+            data_set.append(t)
+        return data_set
+    else:
+        print("文件类型未知")
+        return None
+
+
+def count_sentence_length_distribution(tokenizer, batch):
+    #统计预料中每句话长度，来确定模型中max_len的合理值.
+    corpus['num_blank'] = corpus['text'].apply(count_blank)
+    print(corpus['num_blank'].describe(percentiles=[.8, .9, .95, .98]))
 
 
 def put_txt_to_file(txt_list, abspath_file, encoding='utf-8'):
